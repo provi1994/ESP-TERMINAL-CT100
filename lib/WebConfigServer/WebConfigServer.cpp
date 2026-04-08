@@ -1,140 +1,386 @@
 #include "WebConfigServer.h"
+#include <ETH.h>
 
 WebConfigServer::WebConfigServer(LogManager& logger) : logger_(logger), server_(80) {}
 
 void WebConfigServer::begin(const DeviceConfig& config) {
-  config_ = config;
-  server_.on("/", HTTP_GET, [this]() { handleRoot(); });
-  server_.on("/save", HTTP_POST, [this]() { handleSave(); });
-  server_.on("/logs", HTTP_GET, [this]() { handleLogs(); });
-  server_.on("/status", HTTP_GET, [this]() { handleStatus(); });
-  server_.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
-  server_.begin();
-  logger_.info("Web config server started on port 80");
+    config_ = config;
+
+    server_.on("/", HTTP_GET, [this]() { handleRoot(); });
+    server_.on("/save", HTTP_POST, [this]() { handleSave(); });
+    server_.on("/logs", HTTP_GET, [this]() { handleLogs(); });
+    server_.on("/status", HTTP_GET, [this]() { handleStatus(); });
+    server_.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
+
+    server_.on("/api/device/info", HTTP_GET, [this]() { handleApiDeviceInfo(); });
+    server_.on("/api/config", HTTP_GET, [this]() { handleApiConfigGet(); });
+    server_.on("/api/config", HTTP_POST, [this]() { handleApiConfigPost(); });
+
+    server_.begin();
+    logger_.info("Web config server started on port 80");
 }
 
-void WebConfigServer::loop() { server_.handleClient(); }
-void WebConfigServer::onSave(std::function<void(DeviceConfig)> callback) { onSave_ = callback; }
-void WebConfigServer::onReboot(std::function<void()> callback) { onReboot_ = callback; }
-void WebConfigServer::setConfigProvider(std::function<DeviceConfig()> provider) { configProvider_ = provider; }
-void WebConfigServer::setStatusProvider(std::function<String()> provider) { statusProvider_ = provider; }
+void WebConfigServer::loop() {
+    server_.handleClient();
+}
+
+void WebConfigServer::onSave(std::function<void(DeviceConfig)> callback) {
+    onSave_ = callback;
+}
+
+void WebConfigServer::onReboot(std::function<void()> callback) {
+    onReboot_ = callback;
+}
+
+void WebConfigServer::setConfigProvider(std::function<DeviceConfig()> provider) {
+    configProvider_ = provider;
+}
+
+void WebConfigServer::setStatusProvider(std::function<String()> provider) {
+    statusProvider_ = provider;
+}
+
+DeviceConfig WebConfigServer::activeConfig() const {
+    return configProvider_ ? configProvider_() : config_;
+}
 
 bool WebConfigServer::authenticate() {
-  const DeviceConfig cfg = configProvider_ ? configProvider_() : config_;
-  if (server_.authenticate(cfg.security.webUser.c_str(), cfg.security.webPassword.c_str())) return true;
-  server_.requestAuthentication(BASIC_AUTH, "CT-100", "Logowanie wymagane");
-  return false;
+    const DeviceConfig cfg = activeConfig();
+    if (server_.authenticate(cfg.security.webUser.c_str(), cfg.security.webPassword.c_str())) {
+        return true;
+    }
+    server_.requestAuthentication(BASIC_AUTH, "CT-100", "Logowanie wymagane");
+    return false;
 }
 
 void WebConfigServer::handleRoot() {
-  if (!authenticate()) return;
-  const DeviceConfig cfg = configProvider_ ? configProvider_() : config_;
-  server_.send(200, "text/html; charset=utf-8", buildPage(cfg));
+    if (!authenticate()) return;
+    const DeviceConfig cfg = activeConfig();
+    server_.send(200, "text/html; charset=utf-8", buildPage(cfg));
 }
 
 void WebConfigServer::handleSave() {
-  if (!authenticate()) return;
+    if (!authenticate()) return;
 
-  DeviceConfig cfg = configProvider_ ? configProvider_() : config_;
-  cfg.network.deviceName = server_.arg("deviceName");
-  cfg.network.mode = ConfigManager::networkModeFromString(server_.arg("networkMode"));
-  cfg.network.ip = ConfigManager::stringToIp(server_.arg("ip"));
-  cfg.network.gateway = ConfigManager::stringToIp(server_.arg("gateway"));
-  cfg.network.subnet = ConfigManager::stringToIp(server_.arg("subnet"));
-  cfg.network.dns1 = ConfigManager::stringToIp(server_.arg("dns1"));
-  cfg.network.dns2 = ConfigManager::stringToIp(server_.arg("dns2"));
-  cfg.security.webUser = server_.arg("webUser");
-  if (!server_.arg("webPassword").isEmpty()) cfg.security.webPassword = server_.arg("webPassword");
-  if (!server_.arg("otaPassword").isEmpty()) cfg.security.otaPassword = server_.arg("otaPassword");
-  cfg.rfid.enabled = server_.hasArg("rfidEnabled");
-  cfg.rfid.baudRate = static_cast<uint32_t>(server_.arg("rfidBaud").toInt());
-  cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(server_.arg("rfidEncoding"));
-  cfg.display.enabled = server_.hasArg("displayEnabled");
-  cfg.display.contrast = static_cast<uint8_t>(server_.arg("displayContrast").toInt());
-  cfg.keypad.enabled = server_.hasArg("keypadEnabled");
-  cfg.keypad.pcf8574Address = static_cast<uint8_t>(strtoul(server_.arg("pcfAddr").c_str(), nullptr, 0));
-  cfg.tcp.mode = ConfigManager::tcpModeFromString(server_.arg("tcpMode"));
-  cfg.tcp.serverIp = server_.arg("tcpServerIp");
-  cfg.tcp.serverPort = static_cast<uint16_t>(server_.arg("tcpServerPort").toInt());
-  cfg.tcp.listenPort = static_cast<uint16_t>(server_.arg("tcpListenPort").toInt());
+    DeviceConfig cfg = activeConfig();
+    cfg.network.deviceName = server_.arg("deviceName");
+    cfg.network.mode = ConfigManager::networkModeFromString(server_.arg("networkMode"));
+    cfg.network.ip = ConfigManager::stringToIp(server_.arg("ip"));
+    cfg.network.gateway = ConfigManager::stringToIp(server_.arg("gateway"));
+    cfg.network.subnet = ConfigManager::stringToIp(server_.arg("subnet"));
+    cfg.network.dns1 = ConfigManager::stringToIp(server_.arg("dns1"));
+    cfg.network.dns2 = ConfigManager::stringToIp(server_.arg("dns2"));
 
-  if (onSave_) onSave_(cfg);
-  logger_.warn("Configuration saved from web panel");
+    cfg.security.webUser = server_.arg("webUser");
+    if (!server_.arg("webPassword").isEmpty()) cfg.security.webPassword = server_.arg("webPassword");
+    if (!server_.arg("otaPassword").isEmpty()) cfg.security.otaPassword = server_.arg("otaPassword");
 
-  server_.send(200, "text/html; charset=utf-8",
-               "<html><body><h3>Zapisano konfigurację</h3><p>Urządzenie zastosuje zmiany po restarcie.</p>"
-               "<a href='/'>Powrót</a></body></html>");
+    cfg.rfid.enabled = server_.hasArg("rfidEnabled");
+    cfg.rfid.baudRate = static_cast<uint32_t>(server_.arg("rfidBaud").toInt());
+    cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(server_.arg("rfidEncoding"));
+
+    cfg.display.enabled = server_.hasArg("displayEnabled");
+    cfg.display.contrast = static_cast<uint8_t>(server_.arg("displayContrast").toInt());
+
+    cfg.keypad.enabled = server_.hasArg("keypadEnabled");
+    cfg.keypad.pcf8574Address = static_cast<uint8_t>(strtoul(server_.arg("pcfAddr").c_str(), nullptr, 0));
+
+    cfg.tcp.mode = ConfigManager::tcpModeFromString(server_.arg("tcpMode"));
+    cfg.tcp.serverIp = server_.arg("tcpServerIp");
+    cfg.tcp.serverPort = static_cast<uint16_t>(server_.arg("tcpServerPort").toInt());
+    cfg.tcp.listenPort = static_cast<uint16_t>(server_.arg("tcpListenPort").toInt());
+
+    cfg.discovery.enabled = server_.hasArg("discoveryEnabled");
+    cfg.discovery.udpPort = static_cast<uint16_t>(server_.arg("discoveryPort").toInt());
+
+    if (onSave_) onSave_(cfg);
+    logger_.warn("Configuration saved from web panel");
+
+    server_.send(
+        200,
+        "text/html; charset=utf-8",
+        "<h3>Zapisano konfigurację</h3><p>Urządzenie zastosuje zmiany po restarcie.</p><p><a href='/'>Powrót</a></p>"
+    );
 }
 
 void WebConfigServer::handleLogs() {
-  if (!authenticate()) return;
-  server_.send(200, "text/html; charset=utf-8",
-               "<html><body><h3>Logi</h3>" + logger_.toHtml() + "<p><a href='/'>Powrót</a></p></body></html>");
+    if (!authenticate()) return;
+    server_.send(200, "text/html; charset=utf-8", "<h3>Logi</h3><pre>" + logger_.toHtml() + "</pre><p><a href='/'>Powrót</a></p>");
 }
 
 void WebConfigServer::handleStatus() {
-  if (!authenticate()) return;
-  const String payload = statusProvider_ ? statusProvider_() : String("Brak danych");
-  server_.send(200, "text/plain; charset=utf-8", payload);
+    if (!authenticate()) return;
+    const String payload = statusProvider_ ? statusProvider_() : String("Brak danych");
+    server_.send(200, "text/plain; charset=utf-8", payload);
 }
 
 void WebConfigServer::handleReboot() {
-  if (!authenticate()) return;
-  server_.send(200, "text/html; charset=utf-8", "<html><body><h3>Restart</h3></body></html>");
-  delay(300);
-  if (onReboot_) onReboot_();
+    if (!authenticate()) return;
+    server_.send(200, "text/html; charset=utf-8", "<h3>Restart</h3><p>Urządzenie uruchamia się ponownie.</p>");
+    delay(300);
+    if (onReboot_) onReboot_();
+}
+
+void WebConfigServer::handleApiDeviceInfo() {
+    if (!authenticate()) return;
+    const DeviceConfig cfg = activeConfig();
+    server_.send(200, "application/json; charset=utf-8", buildDeviceInfoJson(cfg));
+}
+
+void WebConfigServer::handleApiConfigGet() {
+    if (!authenticate()) return;
+    const DeviceConfig cfg = activeConfig();
+    server_.send(200, "application/json; charset=utf-8", buildConfigJson(cfg));
+}
+
+void WebConfigServer::handleApiConfigPost() {
+    if (!authenticate()) return;
+    DeviceConfig cfg = activeConfig();
+    applyConfigFromJson(cfg, server_.arg("plain"));
+    if (onSave_) onSave_(cfg);
+    logger_.warn("Configuration saved from REST API");
+    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"restartRequired\":true}");
+}
+
+String WebConfigServer::jsonEscape(const String& value) {
+    String out;
+    out.reserve(value.length() + 8);
+    for (size_t i = 0; i < value.length(); ++i) {
+        const char c = value[i];
+        switch (c) {
+            case '\\': out += "\\\\"; break;
+            case '"': out += "\\\""; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default: out += c; break;
+        }
+    }
+    return out;
+}
+
+String WebConfigServer::buildDeviceInfoJson(const DeviceConfig& cfg) const {
+    String out;
+    out.reserve(384);
+    out += "{";
+    out += "\"deviceId\":\"" + jsonEscape(String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX)) + "\",";
+    out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
+    out += "\"fw\":\"0.1.0\",";
+    out += "\"ip\":\"" + ETH.localIP().toString() + "\",";
+    out += "\"mac\":\"" + ETH.macAddress() + "\",";
+    out += "\"tcpListenPort\":" + String(cfg.tcp.listenPort) + ",";
+    out += "\"discoveryPort\":" + String(cfg.discovery.udpPort);
+    out += "}";
+    return out;
+}
+
+String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) const {
+    String out;
+    out.reserve(1024);
+    out += "{";
+    out += "\"network\":{";
+    out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
+    out += "\"mode\":\"" + ConfigManager::networkModeToString(cfg.network.mode) + "\",";
+    out += "\"ip\":\"" + cfg.network.ip.toString() + "\",";
+    out += "\"gateway\":\"" + cfg.network.gateway.toString() + "\",";
+    out += "\"subnet\":\"" + cfg.network.subnet.toString() + "\",";
+    out += "\"dns1\":\"" + cfg.network.dns1.toString() + "\",";
+    out += "\"dns2\":\"" + cfg.network.dns2.toString() + "\"";
+    out += "},";
+    out += "\"tcp\":{";
+    out += "\"mode\":\"" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\",";
+    out += "\"serverIp\":\"" + jsonEscape(cfg.tcp.serverIp) + "\",";
+    out += "\"serverPort\":" + String(cfg.tcp.serverPort) + ",";
+    out += "\"listenPort\":" + String(cfg.tcp.listenPort);
+    out += "},";
+    out += "\"rfid\":{";
+    out += "\"enabled\":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
+    out += "\"baudRate\":" + String(cfg.rfid.baudRate) + ",";
+    out += "\"encoding\":\"" + ConfigManager::rfidEncodingToString(cfg.rfid.encoding) + "\"";
+    out += "},";
+    out += "\"display\":{";
+    out += "\"enabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
+    out += "\"contrast\":" + String(cfg.display.contrast);
+    out += "},";
+    out += "\"keypad\":{";
+    out += "\"enabled\":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
+    out += "\"pcf8574Address\":" + String(cfg.keypad.pcf8574Address);
+    out += "},";
+    out += "\"discovery\":{";
+    out += "\"enabled\":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
+    out += "\"udpPort\":" + String(cfg.discovery.udpPort);
+    out += "}";
+    out += "}";
+    return out;
+}
+
+String WebConfigServer::parseStringField(const String& body, const String& key, const String& fallback) {
+    const String needle = "\"" + key + "\"";
+    const int keyPos = body.indexOf(needle);
+    if (keyPos < 0) return fallback;
+    const int colonPos = body.indexOf(':', keyPos + needle.length());
+    if (colonPos < 0) return fallback;
+    const int firstQuote = body.indexOf('"', colonPos + 1);
+    if (firstQuote < 0) return fallback;
+    const int secondQuote = body.indexOf('"', firstQuote + 1);
+    if (secondQuote < 0) return fallback;
+    return body.substring(firstQuote + 1, secondQuote);
+}
+
+bool WebConfigServer::parseBoolField(const String& body, const String& key, bool fallback) {
+    const String needle = "\"" + key + "\"";
+    const int keyPos = body.indexOf(needle);
+    if (keyPos < 0) return fallback;
+    const int colonPos = body.indexOf(':', keyPos + needle.length());
+    if (colonPos < 0) return fallback;
+    const String tail = body.substring(colonPos + 1);
+    const String trimmed = tail.substring(tail.indexOfFirstNotOf(" \t\r\n"));
+    if (trimmed.startsWith("true")) return true;
+    if (trimmed.startsWith("false")) return false;
+    return fallback;
+}
+
+uint16_t WebConfigServer::parseUInt16Field(const String& body, const String& key, uint16_t fallback) {
+    const String needle = "\"" + key + "\"";
+    const int keyPos = body.indexOf(needle);
+    if (keyPos < 0) return fallback;
+    const int colonPos = body.indexOf(':', keyPos + needle.length());
+    if (colonPos < 0) return fallback;
+    int start = colonPos + 1;
+    while (start < (int)body.length() && isspace((unsigned char)body[start])) ++start;
+    int end = start;
+    while (end < (int)body.length() && isdigit((unsigned char)body[end])) ++end;
+    if (end <= start) return fallback;
+    return static_cast<uint16_t>(body.substring(start, end).toInt());
+}
+
+uint32_t WebConfigServer::parseUInt32Field(const String& body, const String& key, uint32_t fallback) {
+    return static_cast<uint32_t>(parseUInt16Field(body, key, static_cast<uint16_t>(fallback)));
+}
+
+void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body) const {
+    cfg.network.deviceName = parseStringField(body, "deviceName", cfg.network.deviceName);
+
+    const String netMode = parseStringField(body, "mode", "");
+    if (netMode == "dhcp" || netMode == "static") {
+        cfg.network.mode = ConfigManager::networkModeFromString(netMode);
+    }
+
+    cfg.network.ip = ConfigManager::stringToIp(parseStringField(body, "ip", cfg.network.ip.toString()));
+    cfg.network.gateway = ConfigManager::stringToIp(parseStringField(body, "gateway", cfg.network.gateway.toString()));
+    cfg.network.subnet = ConfigManager::stringToIp(parseStringField(body, "subnet", cfg.network.subnet.toString()));
+    cfg.network.dns1 = ConfigManager::stringToIp(parseStringField(body, "dns1", cfg.network.dns1.toString()));
+    cfg.network.dns2 = ConfigManager::stringToIp(parseStringField(body, "dns2", cfg.network.dns2.toString()));
+
+    const String tcpMode = parseStringField(body, "tcpMode", parseStringField(body, "mode", ""));
+    if (tcpMode == "client" || tcpMode == "host" || tcpMode == "server") {
+        cfg.tcp.mode = ConfigManager::tcpModeFromString(tcpMode);
+    }
+    cfg.tcp.serverIp = parseStringField(body, "serverIp", cfg.tcp.serverIp);
+    cfg.tcp.serverPort = parseUInt16Field(body, "serverPort", cfg.tcp.serverPort);
+    cfg.tcp.listenPort = parseUInt16Field(body, "listenPort", cfg.tcp.listenPort);
+
+    cfg.rfid.enabled = parseBoolField(body, "rfidEnabled", parseBoolField(body, "enabled", cfg.rfid.enabled));
+    cfg.rfid.baudRate = parseUInt32Field(body, "baudRate", cfg.rfid.baudRate);
+    const String rfidEnc = parseStringField(body, "encoding", "");
+    if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw") {
+        cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(rfidEnc);
+    }
+
+    cfg.display.enabled = parseBoolField(body, "displayEnabled", cfg.display.enabled);
+    cfg.display.contrast = static_cast<uint8_t>(parseUInt16Field(body, "contrast", cfg.display.contrast));
+
+    cfg.keypad.enabled = parseBoolField(body, "keypadEnabled", cfg.keypad.enabled);
+    cfg.keypad.pcf8574Address = static_cast<uint8_t>(parseUInt16Field(body, "pcf8574Address", cfg.keypad.pcf8574Address));
+
+    cfg.discovery.enabled = parseBoolField(body, "discoveryEnabled", cfg.discovery.enabled);
+    cfg.discovery.udpPort = parseUInt16Field(body, "udpPort", cfg.discovery.udpPort);
 }
 
 String WebConfigServer::buildPage(const DeviceConfig& cfg) const {
-  String html;
-  html.reserve(5000);
-  html += F("<!doctype html><html><head><meta charset='utf-8'><title>CT-100</title>");
-  html += F("<style>body{font-family:Arial;margin:20px;}fieldset{margin-bottom:16px;}label{display:block;margin:6px 0;}input,select{min-width:240px;}button{padding:8px 14px;}small{color:#666;}</style></head><body>");
-  html += F("<h2>CT-100 - panel konfiguracji</h2><p><a href='/logs'>Logi</a> | <a href='/status'>Status TXT</a></p>");
-  html += F("<form method='post' action='/save'>");
+    String html;
+    html.reserve(7000);
 
-  html += F("<fieldset><legend>Sieć</legend>");
-  html += "<label>Nazwa urządzenia <input name='deviceName' value='" + cfg.network.deviceName + "'></label>";
-  html += F("<label>Tryb sieci <select name='networkMode'>");
-  html += String("<option value='dhcp'") + (cfg.network.mode == NetworkMode::DHCP ? " selected" : "") + ">DHCP</option>";
-  html += String("<option value='static'") + (cfg.network.mode == NetworkMode::STATIC ? " selected" : "") + ">Static IP</option></select></label>";
-  html += "<label>IP <input name='ip' value='" + cfg.network.ip.toString() + "'></label>";
-  html += "<label>Gateway <input name='gateway' value='" + cfg.network.gateway.toString() + "'></label>";
-  html += "<label>Maska <input name='subnet' value='" + cfg.network.subnet.toString() + "'></label>";
-  html += "<label>DNS 1 <input name='dns1' value='" + cfg.network.dns1.toString() + "'></label>";
-  html += "<label>DNS 2 <input name='dns2' value='" + cfg.network.dns2.toString() + "'></label></fieldset>";
+    html += F("<!doctype html><html lang='pl'><head><meta charset='utf-8'>");
+    html += F("<meta name='viewport' content='width=device-width, initial-scale=1'>");
+    html += F("<title>CT-100</title>");
+    html += F("<style>body{font-family:Arial,sans-serif;max-width:980px;margin:20px auto;padding:0 12px;}fieldset{margin:14px 0;padding:12px;}label{display:block;margin:8px 0 4px;}input,select{width:100%;padding:8px;box-sizing:border-box;}button{padding:10px 14px;margin-right:10px;}small{color:#555}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.checkbox{display:flex;align-items:center;gap:8px;margin:8px 0} @media(max-width:700px){.row{grid-template-columns:1fr;}}</style></head><body>");
+    html += F("<h2>CT-100 - panel konfiguracji</h2>");
+    html += F("<p><a href='/logs'>Logi</a> | <a href='/status'>Status TXT</a> | <a href='/api/device/info'>API info</a> | <a href='/api/config'>API config</a></p>");
+    html += F("<form method='post' action='/save'>");
 
-  html += F("<fieldset><legend>Bezpieczeństwo</legend>");
-  html += "<label>Użytkownik WWW <input name='webUser' value='" + cfg.security.webUser + "'></label>";
-  html += F("<label>Nowe hasło WWW <input name='webPassword' type='password' value=''></label>");
-  html += F("<label>Nowe hasło OTA <input name='otaPassword' type='password' value=''></label></fieldset>");
+    html += F("<fieldset><legend>Sieć</legend>");
+    html += F("<label>Nazwa urządzenia</label><input name='deviceName' value='") + cfg.network.deviceName + F("'>");
+    html += F("<label>Tryb sieci</label><select name='networkMode'>");
+    html += F("<option value='dhcp'");
+    if (cfg.network.mode == NetworkMode::DHCP) html += F(" selected");
+    html += F(">DHCP</option><option value='static'");
+    if (cfg.network.mode == NetworkMode::STATIC) html += F(" selected");
+    html += F(">Static IP</option></select>");
+    html += F("<div class='row'>");
+    html += F("<div><label>IP</label><input name='ip' value='") + cfg.network.ip.toString() + F("'></div>");
+    html += F("<div><label>Gateway</label><input name='gateway' value='") + cfg.network.gateway.toString() + F("'></div>");
+    html += F("<div><label>Maska</label><input name='subnet' value='") + cfg.network.subnet.toString() + F("'></div>");
+    html += F("<div><label>DNS 1</label><input name='dns1' value='") + cfg.network.dns1.toString() + F("'></div>");
+    html += F("<div><label>DNS 2</label><input name='dns2' value='") + cfg.network.dns2.toString() + F("'></div>");
+    html += F("</div></fieldset>");
 
-  html += F("<fieldset><legend>RFID</legend>");
-  html += String("<label><input type='checkbox' name='rfidEnabled'") + (cfg.rfid.enabled ? " checked" : "") + "> Włącz RFID</label>";
-  html += "<label>Baud rate <input name='rfidBaud' value='" + String(cfg.rfid.baudRate) + "'></label>";
-  html += F("<label>Kodowanie <select name='rfidEncoding'>");
-  html += String("<option value='hex'") + (cfg.rfid.encoding == RfidEncoding::HEX_MODE ? " selected" : "") + ">HEX</option>";
-  html += String("<option value='dec'") + (cfg.rfid.encoding == RfidEncoding::DEC_MODE ? " selected" : "") + ">DEC</option>";
-  html += String("<option value='raw'") + (cfg.rfid.encoding == RfidEncoding::RAW_MODE ? " selected" : "") + ">RAW</option></select></label></fieldset>";
+    html += F("<fieldset><legend>Bezpieczeństwo</legend>");
+    html += F("<label>Użytkownik WWW</label><input name='webUser' value='") + cfg.security.webUser + F("'>");
+    html += F("<label>Nowe hasło WWW</label><input name='webPassword' type='password' value=''>");
+    html += F("<label>Nowe hasło OTA</label><input name='otaPassword' type='password' value=''>");
+    html += F("</fieldset>");
 
-  html += F("<fieldset><legend>Wyświetlacz i klawiatura</legend>");
-  html += String("<label><input type='checkbox' name='displayEnabled'") + (cfg.display.enabled ? " checked" : "") + "> Włącz LCD</label>";
-  html += "<label>Kontrast LCD <input name='displayContrast' value='" + String(cfg.display.contrast) + "'></label>";
-  html += String("<label><input type='checkbox' name='keypadEnabled'") + (cfg.keypad.enabled ? " checked" : "") + "> Włącz klawiaturę PCF8574</label>";
-  html += "<label>Adres PCF8574 <input name='pcfAddr' value='0x" + String(cfg.keypad.pcf8574Address, HEX) + "'></label>";
-  html += F("<small>Mapowanie PCF8574: P0-P3 = wiersze, P4-P7 = kolumny.</small></fieldset>");
+    html += F("<fieldset><legend>RFID</legend>");
+    html += F("<label class='checkbox'><input type='checkbox' name='rfidEnabled'");
+    if (cfg.rfid.enabled) html += F(" checked");
+    html += F(">Włącz RFID</label>");
+    html += F("<label>Baud rate</label><input name='rfidBaud' value='") + String(cfg.rfid.baudRate) + F("'>");
+    html += F("<label>Kodowanie</label><select name='rfidEncoding'>");
+    html += F("<option value='hex'");
+    if (cfg.rfid.encoding == RfidEncoding::HEX_MODE) html += F(" selected");
+    html += F(">HEX</option><option value='dec'");
+    if (cfg.rfid.encoding == RfidEncoding::DEC_MODE) html += F(" selected");
+    html += F(">DEC</option><option value='raw'");
+    if (cfg.rfid.encoding == RfidEncoding::RAW_MODE) html += F(" selected");
+    html += F(">RAW</option></select></fieldset>");
 
-  html += F("<fieldset><legend>TCP</legend>");
-  html += F("<label>Tryb <select name='tcpMode'>");
-  html += String("<option value='client'") + (cfg.tcp.mode == TcpMode::CLIENT ? " selected" : "") + ">Client</option>";
-  html += String("<option value='host'") + (cfg.tcp.mode == TcpMode::HOST ? " selected" : "") + ">Host</option>";
-  html += String("<option value='server'") + (cfg.tcp.mode == TcpMode::SERVER ? " selected" : "") + ">Server</option></select></label>";
-  html += "<label>IP serwera TCP <input name='tcpServerIp' value='" + cfg.tcp.serverIp + "'></label>";
-  html += "<label>Port serwera TCP <input name='tcpServerPort' value='" + String(cfg.tcp.serverPort) + "'></label>";
-  html += "<label>Port nasłuchu <input name='tcpListenPort' value='" + String(cfg.tcp.listenPort) + "'></label></fieldset>";
+    html += F("<fieldset><legend>Wyświetlacz i klawiatura</legend>");
+    html += F("<label class='checkbox'><input type='checkbox' name='displayEnabled'");
+    if (cfg.display.enabled) html += F(" checked");
+    html += F(">Włącz LCD</label>");
+    html += F("<label>Kontrast LCD</label><input name='displayContrast' value='") + String(cfg.display.contrast) + F("'>");
+    html += F("<label class='checkbox'><input type='checkbox' name='keypadEnabled'");
+    if (cfg.keypad.enabled) html += F(" checked");
+    html += F(">Włącz klawiaturę PCF8574</label>");
+    html += F("<label>Adres PCF8574</label><input name='pcfAddr' value='") + String(cfg.keypad.pcf8574Address) + F("'>");
+    html += F("<small>Mapowanie PCF8574: P0-P3 = wiersze, P4-P7 = kolumny.</small>");
+    html += F("</fieldset>");
 
-  html += F("<button type='submit'>Zapisz konfigurację</button></form>");
-  html += F("<form method='post' action='/reboot' style='margin-top:12px;'><button type='submit'>Restart urządzenia</button></form>");
-  html += F("</body></html>");
-  return html;
+    html += F("<fieldset><legend>TCP</legend>");
+    html += F("<label>Tryb</label><select name='tcpMode'>");
+    html += F("<option value='client'");
+    if (cfg.tcp.mode == TcpMode::CLIENT) html += F(" selected");
+    html += F(">Client</option><option value='host'");
+    if (cfg.tcp.mode == TcpMode::HOST) html += F(" selected");
+    html += F(">Host</option><option value='server'");
+    if (cfg.tcp.mode == TcpMode::SERVER) html += F(" selected");
+    html += F(">Server</option></select>");
+    html += F("<label>IP serwera TCP</label><input name='tcpServerIp' value='") + cfg.tcp.serverIp + F("'>");
+    html += F("<label>Port serwera TCP</label><input name='tcpServerPort' value='") + String(cfg.tcp.serverPort) + F("'>");
+    html += F("<label>Port nasłuchu</label><input name='tcpListenPort' value='") + String(cfg.tcp.listenPort) + F("'>");
+    html += F("</fieldset>");
+
+    html += F("<fieldset><legend>Autodiscovery</legend>");
+    html += F("<label class='checkbox'><input type='checkbox' name='discoveryEnabled'");
+    if (cfg.discovery.enabled) html += F(" checked");
+    html += F(">Włącz wykrywanie UDP</label>");
+    html += F("<label>Port UDP discovery</label><input name='discoveryPort' value='") + String(cfg.discovery.udpPort) + F("'>");
+    html += F("</fieldset>");
+
+    html += F("<p><button type='submit'>Zapisz konfigurację</button></p>");
+    html += F("</form>");
+    html += F("<form method='post' action='/reboot'><button type='submit'>Restart urządzenia</button></form>");
+    html += F("</body></html>");
+    return html;
 }
