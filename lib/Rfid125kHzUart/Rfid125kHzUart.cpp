@@ -1,42 +1,128 @@
 #include "Rfid125kHzUart.h"
 
-Rfid125kHzUart::Rfid125kHzUart(LogManager& logger) : serial_(2), logger_(logger) {}
+Rfid125kHzUart::Rfid125kHzUart(LogManager& logger)
+    : serial_(2), logger_(logger) {}
 
 void Rfid125kHzUart::begin(uint32_t baudRate, int rxPin, int txPin, RfidEncoding encoding) {
   encoding_ = encoding;
+  frameBuffer_.clear();
+  inFrame_ = false;
+  expectedFrameSize_ = 0;
   serial_.begin(baudRate, SERIAL_8N1, rxPin, txPin);
   logger_.info("RFID UART started on Serial2");
 }
 
-void Rfid125kHzUart::setEncoding(RfidEncoding encoding) { encoding_ = encoding; }
+void Rfid125kHzUart::setEncoding(RfidEncoding encoding) {
+  encoding_ = encoding;
+}
 
-void Rfid125kHzUart::onCard(std::function<void(const String&, const String&)> callback) { callback_ = callback; }
+void Rfid125kHzUart::onCard(std::function<void(const String&, const String&)> callback) {
+  callback_ = callback;
+}
 
 void Rfid125kHzUart::loop() {
   while (serial_.available()) {
-    const char c = static_cast<char>(serial_.read());
-    if (c == '\r' || c == '\n') {
-      if (!buffer_.isEmpty()) {
-        processFrame(buffer_);
-        buffer_.clear();
+    const uint8_t b = static_cast<uint8_t>(serial_.read());
+
+    // Tryb binarny: ramka STX ... ETX
+    if (!inFrame_) {
+      if (b == 0x02) {
+        inFrame_ = true;
+        frameBuffer_.clear();
+        frameBuffer_.push_back(b);
+        expectedFrameSize_ = 0;
+        continue;
       }
-    } else if (isPrintable(static_cast<unsigned char>(c))) {
-      buffer_ += c;
-      if (buffer_.length() > 32) {
-        processFrame(buffer_);
-        buffer_.clear();
+
+      // Fallback dla czytników ASCII typu EM-18/RDM6300
+      if (b == '\r' || b == '\n') {
+        continue;
       }
+
+      if (isPrintable(static_cast<int>(b))) {
+        frameBuffer_.push_back(b);
+
+        if (frameBuffer_.size() > 32) {
+          String raw;
+          raw.reserve(frameBuffer_.size());
+          for (uint8_t c : frameBuffer_) raw += static_cast<char>(c);
+          processAsciiFrame(raw);
+          frameBuffer_.clear();
+        }
+      }
+
+      continue;
     }
+
+    // Jesteśmy w ramce binarnej
+    frameBuffer_.push_back(b);
+
+    if (frameBuffer_.size() == 2) {
+      // Drugi bajt to długość całej części danych razem ze startem i końcem danych
+      // Z Twojego przykładu: 02 0A ... 03 => cała ramka ma 10 bajtów
+      expectedFrameSize_ = frameBuffer_[1];
+
+      // Proste zabezpieczenie
+      if (expectedFrameSize_ < 4 || expectedFrameSize_ > 64) {
+        logger_.warn("RFID binary frame rejected: invalid length=" + String(expectedFrameSize_));
+        frameBuffer_.clear();
+        inFrame_ = false;
+        expectedFrameSize_ = 0;
+      }
+      continue;
+    }
+
+    if (expectedFrameSize_ > 0 && frameBuffer_.size() >= expectedFrameSize_) {
+      processBinaryFrame(frameBuffer_);
+      frameBuffer_.clear();
+      inFrame_ = false;
+      expectedFrameSize_ = 0;
+    }
+  }
+
+  // Domknięcie fallbacku ASCII, jeśli coś zostało i UART ucichł
+  if (!inFrame_ && !frameBuffer_.empty()) {
+    String raw;
+    raw.reserve(frameBuffer_.size());
+    for (uint8_t c : frameBuffer_) raw += static_cast<char>(c);
+    processAsciiFrame(raw);
+    frameBuffer_.clear();
   }
 }
 
-void Rfid125kHzUart::processFrame(const String& raw) {
+void Rfid125kHzUart::processAsciiFrame(const String& raw) {
   const String normalized = normalizeFrame(raw);
   if (normalized.isEmpty()) return;
 
   const String encoded = encodeTag(normalized);
-  logger_.info("RFID card: raw=" + normalized + " encoded=" + encoded);
+  logger_.info("RFID ASCII card: raw=" + normalized + " encoded=" + encoded);
+
   if (callback_) callback_(normalized, encoded);
+}
+
+void Rfid125kHzUart::processBinaryFrame(const std::vector<uint8_t>& frame) {
+  if (frame.size() < 4) return;
+  if (frame.front() != 0x02) return;
+  if (frame.back() != 0x03) {
+    logger_.warn("RFID binary frame rejected: missing ETX");
+    return;
+  }
+
+  const bool bccOk = verifyBcc(frame);
+  const String rawHex = bytesToHex(frame);
+  const String tagHex = decodeBinaryTag(frame);
+  const String encoded = encodeTag(tagHex);
+
+  logger_.info(
+      "RFID BIN card: raw=" + rawHex +
+      " tag=" + tagHex +
+      " encoded=" + encoded +
+      " bcc=" + String(bccOk ? "OK" : "FAIL")
+  );
+
+  if (!tagHex.isEmpty() && callback_) {
+    callback_(tagHex, encoded);
+  }
 }
 
 String Rfid125kHzUart::normalizeFrame(const String& raw) const {
@@ -47,6 +133,7 @@ String Rfid125kHzUart::normalizeFrame(const String& raw) const {
       out += static_cast<char>(toupper(static_cast<unsigned char>(c)));
     }
   }
+
   if (out.length() >= 8 && isHexString(out)) return out;
   return raw;
 }
@@ -55,6 +142,7 @@ String Rfid125kHzUart::encodeTag(const String& normalized) const {
   if (encoding_ == RfidEncoding::RAW_MODE || !isHexString(normalized)) {
     return normalized;
   }
+
   if (encoding_ == RfidEncoding::HEX_MODE) {
     return normalized;
   }
@@ -63,16 +151,76 @@ String Rfid125kHzUart::encodeTag(const String& normalized) const {
   for (size_t i = 0; i < normalized.length(); ++i) {
     const char c = normalized[i];
     value <<= 4U;
-    value += (c >= '0' && c <= '9') ? static_cast<unsigned long long>(c - '0')
-                                     : static_cast<unsigned long long>(10 + (c - 'A'));
+    value += (c >= '0' && c <= '9')
+                 ? static_cast<unsigned long long>(c - '0')
+                 : static_cast<unsigned long long>(10 + (c - 'A'));
   }
+
   return String(value);
 }
 
 bool Rfid125kHzUart::isHexString(const String& value) {
   if (value.isEmpty()) return false;
+
   for (size_t i = 0; i < value.length(); ++i) {
     if (!isHexadecimalDigit(value[i])) return false;
   }
+
   return true;
+}
+
+String Rfid125kHzUart::bytesToHex(const uint8_t* data, size_t len) {
+  String out;
+  for (size_t i = 0; i < len; ++i) {
+    if (data[i] < 0x10) out += "0";
+    out += String(data[i], HEX);
+  }
+  out.toUpperCase();
+  return out;
+}
+
+String Rfid125kHzUart::bytesToHex(const std::vector<uint8_t>& data) {
+  if (data.empty()) return "";
+  return bytesToHex(data.data(), data.size());
+}
+
+String Rfid125kHzUart::decodeBinaryTag(const std::vector<uint8_t>& frame) {
+  // Format z Twojego screena:
+  // [0]=0x02 STX
+  // [1]=LEN
+  // [2]=type
+  // [3..6]=4 bajty numeru karty
+  // [7]=BCC
+  // [8]=0x03 ETX
+  //
+  // Ale w przykładzie 02 0A 02 2E 00 B6 D7 B5 F2 03:
+  // [0]=STX
+  // [1]=LEN=0A
+  // [2]=TYPE
+  // [3..7]=5 bajtów danych karty
+  // [8]=BCC
+  // [9]=ETX
+  //
+  // Trzymamy się przykładu z ramką 10-bajtową i wyciągamy bajty [3..7].
+
+  if (frame.size() < 10) return "";
+
+  const size_t cardStart = 3;
+  const size_t cardLen = 5;
+
+  if (frame.size() < cardStart + cardLen) return "";
+  return bytesToHex(&frame[cardStart], cardLen);
+}
+
+bool Rfid125kHzUart::verifyBcc(const std::vector<uint8_t>& frame) {
+  // Z opisu: BCC/XOR liczony od drugiego do ósmego bajtu,
+  // a dziewiąty bajt to BCC dla przykładowej 10-bajtowej ramki.
+  if (frame.size() != 10) return false;
+
+  uint8_t bcc = 0x00;
+  for (size_t i = 1; i <= 7; ++i) {
+    bcc ^= frame[i];
+  }
+
+  return bcc == frame[8];
 }
