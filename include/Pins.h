@@ -19,7 +19,7 @@ static constexpr int I2C_SDA = 33;
 // LCD ST7920 w trybie szeregowym 3-wire
 // PSB wyświetlacza musi być podłączony do GND.
 static constexpr int LCD_CLK = 14;   // E / SCLK
-static constexpr int LCD_MOSI = 4;   // RW / SID
+static constexpr int LCD_MOSI = 4;   // RW / SIDww          
 static constexpr int LCD_CS = 15;    // RS / CS
 static constexpr uint8_t LCD_RST = 255; // U8X8_PIN_NONE bez zależności od U8g2lib.h
 }

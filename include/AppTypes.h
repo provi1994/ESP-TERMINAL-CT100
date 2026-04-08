@@ -36,6 +36,14 @@ struct TcpSettings {
     uint16_t listenPort = 7000;
 };
 
+struct ScaleTcpSettings {
+    bool enabled = true;
+    TcpMode mode = TcpMode::CLIENT;
+    String serverIp = "192.168.1.20";
+    uint16_t serverPort = 4001;
+    uint16_t listenPort = 4001;
+};
+
 struct SecuritySettings {
     String webUser = "admin";
     String webPassword = "admin";
@@ -66,6 +74,7 @@ struct DiscoverySettings {
 struct DeviceConfig {
     NetworkSettings network;
     TcpSettings tcp;
+    ScaleTcpSettings scaleTcp;
     SecuritySettings security;
     RfidSettings rfid;
     DisplaySettings display;

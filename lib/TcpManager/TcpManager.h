@@ -4,6 +4,7 @@
 #include <ETH.h>
 #include <WiFiClient.h>
 #include <WiFiServer.h>
+#include <functional>
 #include <memory>
 
 #include "AppTypes.h"
@@ -23,6 +24,8 @@ class TcpManager {
   bool hasClient();
   String lastMessage() const;
 
+  void onLineReceived(std::function<void(const String&)> callback);
+
  private:
   void loopClient();
   void loopServer();
@@ -37,4 +40,5 @@ class TcpManager {
   WiFiClient incomingClient_;
   unsigned long lastReconnectAttempt_ = 0;
   String lastMessage_;
+  std::function<void(const String&)> lineCallback_;
 };

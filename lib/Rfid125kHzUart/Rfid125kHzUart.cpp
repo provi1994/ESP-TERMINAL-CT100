@@ -24,7 +24,6 @@ void Rfid125kHzUart::loop() {
   while (serial_.available()) {
     const uint8_t b = static_cast<uint8_t>(serial_.read());
 
-    // Tryb binarny: ramka STX ... ETX
     if (!inFrame_) {
       if (b == 0x02) {
         inFrame_ = true;
@@ -34,35 +33,39 @@ void Rfid125kHzUart::loop() {
         continue;
       }
 
-      // Fallback dla czytników ASCII typu EM-18/RDM6300
       if (b == '\r' || b == '\n') {
-        continue;
-      }
-
-      if (isPrintable(static_cast<int>(b))) {
-        frameBuffer_.push_back(b);
-
-        if (frameBuffer_.size() > 32) {
+        if (!frameBuffer_.empty()) {
           String raw;
           raw.reserve(frameBuffer_.size());
           for (uint8_t c : frameBuffer_) raw += static_cast<char>(c);
           processAsciiFrame(raw);
           frameBuffer_.clear();
         }
+        continue;
+      }
+
+      if (isPrintable(static_cast<int>(b))) {
+        frameBuffer_.push_back(b);
+
+        if (frameBuffer_.size() >= 10) {
+          String raw;
+          raw.reserve(frameBuffer_.size());
+          for (uint8_t c : frameBuffer_) raw += static_cast<char>(c);
+          processAsciiFrame(raw);
+          frameBuffer_.clear();
+        }
+      } else if (!frameBuffer_.empty()) {
+        frameBuffer_.clear();
       }
 
       continue;
     }
 
-    // Jesteśmy w ramce binarnej
     frameBuffer_.push_back(b);
 
     if (frameBuffer_.size() == 2) {
-      // Drugi bajt to długość całej części danych razem ze startem i końcem danych
-      // Z Twojego przykładu: 02 0A ... 03 => cała ramka ma 10 bajtów
       expectedFrameSize_ = frameBuffer_[1];
 
-      // Proste zabezpieczenie
       if (expectedFrameSize_ < 4 || expectedFrameSize_ > 64) {
         logger_.warn("RFID binary frame rejected: invalid length=" + String(expectedFrameSize_));
         frameBuffer_.clear();
@@ -78,15 +81,6 @@ void Rfid125kHzUart::loop() {
       inFrame_ = false;
       expectedFrameSize_ = 0;
     }
-  }
-
-  // Domknięcie fallbacku ASCII, jeśli coś zostało i UART ucichł
-  if (!inFrame_ && !frameBuffer_.empty()) {
-    String raw;
-    raw.reserve(frameBuffer_.size());
-    for (uint8_t c : frameBuffer_) raw += static_cast<char>(c);
-    processAsciiFrame(raw);
-    frameBuffer_.clear();
   }
 }
 
@@ -185,24 +179,6 @@ String Rfid125kHzUart::bytesToHex(const std::vector<uint8_t>& data) {
 }
 
 String Rfid125kHzUart::decodeBinaryTag(const std::vector<uint8_t>& frame) {
-  // Format z Twojego screena:
-  // [0]=0x02 STX
-  // [1]=LEN
-  // [2]=type
-  // [3..6]=4 bajty numeru karty
-  // [7]=BCC
-  // [8]=0x03 ETX
-  //
-  // Ale w przykładzie 02 0A 02 2E 00 B6 D7 B5 F2 03:
-  // [0]=STX
-  // [1]=LEN=0A
-  // [2]=TYPE
-  // [3..7]=5 bajtów danych karty
-  // [8]=BCC
-  // [9]=ETX
-  //
-  // Trzymamy się przykładu z ramką 10-bajtową i wyciągamy bajty [3..7].
-
   if (frame.size() < 10) return "";
 
   const size_t cardStart = 3;
@@ -213,8 +189,6 @@ String Rfid125kHzUart::decodeBinaryTag(const std::vector<uint8_t>& frame) {
 }
 
 bool Rfid125kHzUart::verifyBcc(const std::vector<uint8_t>& frame) {
-  // Z opisu: BCC/XOR liczony od drugiego do ósmego bajtu,
-  // a dziewiąty bajt to BCC dla przykładowej 10-bajtowej ramki.
   if (frame.size() != 10) return false;
 
   uint8_t bcc = 0x00;

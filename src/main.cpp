@@ -19,6 +19,7 @@ DisplayManager display(logger, Pins::LCD_CLK, Pins::LCD_MOSI, Pins::LCD_CS, Pins
 Rfid125kHzUart rfid(logger);
 KeypadManager keypad(logger);
 TcpManager tcpManager(logger);
+TcpManager scaleTcpManager(logger);
 WebConfigServer webServer(logger);
 DiscoveryService discoveryService;
 
@@ -27,16 +28,33 @@ unsigned long lastStatusRefresh = 0;
 String lastCard;
 String lastKey;
 
+String lcdCustomText;
+unsigned long lcdCustomUntil = 0;
+
+String remoteStatusText = "Oczekuje na wazenie";
+unsigned long remoteStatusUntil = 0;
+
+String currentWeight = "---";
+
+static String activeHeaderText() {
+    if (remoteStatusUntil > millis() && !remoteStatusText.isEmpty()) {
+        return remoteStatusText;
+    }
+    return "Oczekuje na wazenie";
+}
+
 static String buildStatusText() {
     String out;
     out += "device=" + cfg.network.deviceName + "\n";
     out += "ip=" + netManager.localIP().toString() + "\n";
     out += "rfid_last=" + lastCard + "\n";
     out += "key_last=" + lastKey + "\n";
-    out += "tcp_mode=" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\n";
-    out += "tcp_last=" + tcpManager.lastMessage() + "\n";
-    out += "discovery=" + String(cfg.discovery.enabled ? "on" : "off") + "\n";
-    out += "discovery_port=" + String(cfg.discovery.udpPort) + "\n";
+    out += "cmd_tcp_mode=" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\n";
+    out += "cmd_tcp_last=" + tcpManager.lastMessage() + "\n";
+    out += "scale_enabled=" + String(cfg.scaleTcp.enabled ? "on" : "off") + "\n";
+    out += "scale_tcp_mode=" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\n";
+    out += "weight=" + currentWeight + "\n";
+    out += "header=" + activeHeaderText() + "\n";
     return out;
 }
 
@@ -60,6 +78,16 @@ static void applyRuntimeConfig() {
     }
 
     tcpManager.begin(cfg.tcp);
+
+    if (cfg.scaleTcp.enabled) {
+        TcpSettings scaleSettings;
+        scaleSettings.mode = cfg.scaleTcp.mode;
+        scaleSettings.serverIp = cfg.scaleTcp.serverIp;
+        scaleSettings.serverPort = cfg.scaleTcp.serverPort;
+        scaleSettings.listenPort = cfg.scaleTcp.listenPort;
+        scaleTcpManager.begin(scaleSettings);
+    }
+
     webServer.begin(cfg);
 
     if (cfg.discovery.enabled) {
@@ -93,6 +121,41 @@ void setup() {
 
     applyRuntimeConfig();
 
+    tcpManager.onLineReceived([](const String& line) {
+        if (line.startsWith("LCD:")) {
+            lcdCustomText = line.substring(4);
+            lcdCustomText.trim();
+            lcdCustomUntil = millis() + 5000UL;
+
+            logger.info("LCD custom text: " + lcdCustomText);
+
+            if (cfg.display.enabled) {
+                display.showTcp(lcdCustomText);
+            }
+            return;
+        }
+
+        if (line.startsWith("STATUS:")) {
+            remoteStatusText = line.substring(7);
+            remoteStatusText.trim();
+            if (remoteStatusText.isEmpty()) {
+                remoteStatusText = "Oczekuje na wazenie";
+            }
+            remoteStatusUntil = millis() + 5000UL;
+            logger.info("Remote status text: " + remoteStatusText);
+            return;
+        }
+    });
+
+    scaleTcpManager.onLineReceived([](const String& line) {
+        String weight = line;
+        weight.trim();
+        if (weight.isEmpty()) return;
+
+        currentWeight = weight;
+        logger.info("Scale ASCII: " + currentWeight);
+    });
+
     rfid.onCard([](const String& raw, const String& encoded) {
         lastCard = encoded;
         if (cfg.display.enabled) {
@@ -124,6 +187,10 @@ void loop() {
     webServer.loop();
     tcpManager.loop();
 
+    if (cfg.scaleTcp.enabled) {
+        scaleTcpManager.loop();
+    }
+
     if (cfg.discovery.enabled) {
         discoveryService.loop();
     }
@@ -131,13 +198,17 @@ void loop() {
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();
 
-    if (cfg.display.enabled && millis() - lastStatusRefresh > 1000UL) {
+    if (cfg.display.enabled && millis() - lastStatusRefresh > 500UL) {
         lastStatusRefresh = millis();
-        display.showStatus(
-            "IP:" + netManager.localIP().toString(),
-            "RFID:" + (lastCard.isEmpty() ? String("-") : lastCard.substring(0, 14)),
-            "KEY:" + (lastKey.isEmpty() ? String("-") : lastKey),
-            "TCP:" + ConfigManager::tcpModeToString(cfg.tcp.mode)
-        );
+
+        if (lcdCustomUntil > millis()) {
+            display.showTcp(lcdCustomText);
+        } else {
+            display.showIdleWeight(
+                activeHeaderText(),
+                currentWeight.isEmpty() ? String("---") : currentWeight,
+                "Zbliz karte RFID"
+            );
+        }
     }
 }

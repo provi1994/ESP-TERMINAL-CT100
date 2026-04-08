@@ -18,6 +18,12 @@ DeviceConfig ConfigManager::load() {
     config_.tcp.serverPort = prefs_.getUShort("tcp_sport", config_.tcp.serverPort);
     config_.tcp.listenPort = prefs_.getUShort("tcp_lport", config_.tcp.listenPort);
 
+    config_.scaleTcp.enabled = prefs_.getBool("sc_en", config_.scaleTcp.enabled);
+    config_.scaleTcp.mode = static_cast<TcpMode>(prefs_.getUChar("sc_mode", static_cast<uint8_t>(config_.scaleTcp.mode)));
+    config_.scaleTcp.serverIp = prefs_.getString("sc_ip", config_.scaleTcp.serverIp);
+    config_.scaleTcp.serverPort = prefs_.getUShort("sc_sport", config_.scaleTcp.serverPort);
+    config_.scaleTcp.listenPort = prefs_.getUShort("sc_lport", config_.scaleTcp.listenPort);
+
     config_.security.webUser = prefs_.getString("web_user", config_.security.webUser);
     config_.security.webPassword = prefs_.getString("web_pass", config_.security.webPassword);
     config_.security.otaPassword = prefs_.getString("ota_pass", config_.security.otaPassword);
@@ -53,6 +59,12 @@ bool ConfigManager::save(const DeviceConfig& config) {
     prefs_.putString("tcp_ip", config.tcp.serverIp);
     prefs_.putUShort("tcp_sport", config.tcp.serverPort);
     prefs_.putUShort("tcp_lport", config.tcp.listenPort);
+
+    prefs_.putBool("sc_en", config.scaleTcp.enabled);
+    prefs_.putUChar("sc_mode", static_cast<uint8_t>(config.scaleTcp.mode));
+    prefs_.putString("sc_ip", config.scaleTcp.serverIp);
+    prefs_.putUShort("sc_sport", config.scaleTcp.serverPort);
+    prefs_.putUShort("sc_lport", config.scaleTcp.listenPort);
 
     prefs_.putString("web_user", config.security.webUser);
     prefs_.putString("web_pass", config.security.webPassword);

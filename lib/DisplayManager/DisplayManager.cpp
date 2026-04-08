@@ -10,6 +10,11 @@ void DisplayManager::begin(uint8_t contrast) {
   logger_.info("ST7920 display initialized in 3-wire serial mode");
 }
 
+String DisplayManager::fit(const String& text, size_t maxLen) {
+  if (text.length() <= maxLen) return text;
+  return text.substring(0, maxLen);
+}
+
 void DisplayManager::drawHeader(const String& title) {
   u8g2_.clearBuffer();
   u8g2_.drawFrame(0, 0, 128, 64);
@@ -19,9 +24,14 @@ void DisplayManager::drawHeader(const String& title) {
   u8g2_.setDrawColor(1);
 }
 
-String DisplayManager::fit(const String& text, size_t maxLen) {
-  if (text.length() <= maxLen) return text;
-  return text.substring(0, maxLen);
+void DisplayManager::drawHeaderBar(const String& text) {
+  u8g2_.clearBuffer();
+  u8g2_.drawFrame(0, 0, 128, 64);
+  u8g2_.drawBox(0, 0, 128, 12);
+  u8g2_.setDrawColor(0);
+  const String header = fit(text, 20);
+  u8g2_.drawStr(2, 10, header.c_str());
+  u8g2_.setDrawColor(1);
 }
 
 void DisplayManager::showBoot(const String& deviceName) {
@@ -50,8 +60,24 @@ void DisplayManager::showCard(const String& card) {
 
 void DisplayManager::showTcp(const String& message) {
   drawHeader("TCP");
-  u8g2_.drawStr(4, 24, "Ostatnia ramka:");
+  u8g2_.drawStr(4, 24, "Komunikat:");
   u8g2_.drawStr(4, 40, fit(message, 20).c_str());
   u8g2_.drawStr(4, 54, fit(message.substring(20), 20).c_str());
+  u8g2_.sendBuffer();
+}
+
+void DisplayManager::showIdleWeight(const String& header, const String& weight, const String& prompt) {
+  drawHeaderBar(header);
+
+  u8g2_.setFont(u8g2_font_6x12_tf);
+  u8g2_.drawStr(4, 24, "Aktualna waga:");
+
+  String w = fit(weight, 18);
+  u8g2_.setFont(u8g2_font_10x20_tf);
+  u8g2_.drawStr(4, 46, w.c_str());
+
+  u8g2_.setFont(u8g2_font_6x12_tf);
+  u8g2_.drawStr(4, 60, fit(prompt, 20).c_str());
+
   u8g2_.sendBuffer();
 }

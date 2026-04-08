@@ -20,6 +20,10 @@ void TcpManager::begin(const TcpSettings& settings) {
   }
 }
 
+void TcpManager::onLineReceived(std::function<void(const String&)> callback) {
+  lineCallback_ = callback;
+}
+
 void TcpManager::loop() {
   if (!ETH.linkUp()) {
     return;
@@ -100,19 +104,43 @@ void TcpManager::acceptServerClient() {
 void TcpManager::readClient(WiFiClient& client) {
   while (client.available()) {
     char c = static_cast<char>(client.read());
+
     if (c == '\r') {
       continue;
     }
+
     if (c == '\n') {
       if (!lastMessage_.isEmpty()) {
         logger_.info("TCP RX: " + lastMessage_);
+        if (lineCallback_) {
+          lineCallback_(lastMessage_);
+        }
+        lastMessage_.clear();
       }
     } else {
       lastMessage_ += c;
+
+      if (lastMessage_.startsWith("LCD:") || lastMessage_.startsWith("STATUS:")) {
+        logger_.info("TCP RX immediate: " + lastMessage_);
+        if (lineCallback_) {
+          lineCallback_(lastMessage_);
+        }
+        lastMessage_.clear();
+        continue;
+      }
+
       if (lastMessage_.length() > 256) {
         lastMessage_.remove(0, lastMessage_.length() - 256);
       }
     }
+  }
+
+  if (!client.connected() && !lastMessage_.isEmpty()) {
+    logger_.info("TCP RX on close: " + lastMessage_);
+    if (lineCallback_) {
+      lineCallback_(lastMessage_);
+    }
+    lastMessage_.clear();
   }
 }
 

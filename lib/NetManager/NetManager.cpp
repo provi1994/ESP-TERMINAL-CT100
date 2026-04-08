@@ -18,6 +18,21 @@ bool NetManager::begin(const NetworkSettings& settings) {
   }
 
   ETH.setHostname(hostname_.c_str());
+
+  if (settings.mode == NetworkMode::STATIC) {
+    if (!ETH.config(settings.ip, settings.gateway, settings.subnet, settings.dns1, settings.dns2)) {
+      logger_.error("ETH static IP config failed");
+      return false;
+    }
+    logger_.info(
+      "Ethernet static IP configured: " + settings.ip.toString() +
+      " gw=" + settings.gateway.toString() +
+      " mask=" + settings.subnet.toString()
+    );
+  } else {
+    logger_.info("Ethernet DHCP mode enabled");
+  }
+
   logger_.info("Ethernet init started");
   return true;
 }
