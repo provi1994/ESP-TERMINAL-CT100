@@ -2,60 +2,65 @@
 
 NetManager* NetManager::instance_ = nullptr;
 
-NetManager::NetManager(LogManager& logger) : logger_(logger) { instance_ = this; }
+NetManager::NetManager(LogManager& logger) : logger_(logger) {
+  instance_ = this;
+}
 
 bool NetManager::begin(const NetworkSettings& settings) {
   hostname_ = settings.deviceName;
   WiFi.onEvent(NetManager::onEvent);
-  ETH.setHostname(hostname_.c_str());
 
-  if (!ETH.begin()) {
+  delay(500);
+
+  if (!ETH.begin(1, 16, 23, 18, ETH_PHY_LAN8720, ETH_CLOCK_GPIO0_IN)) {
     logger_.error("ETH.begin() failed");
     return false;
   }
 
-  if (settings.mode == NetworkMode::STATIC) {
-    if (!ETH.config(settings.ip, settings.gateway, settings.subnet, settings.dns1, settings.dns2)) {
-      logger_.warn("ETH.config() failed, fallback may occur");
-    }
-    logger_.info("Static IP requested: " + settings.ip.toString());
-  } else {
-    logger_.info("DHCP mode requested");
-  }
+  ETH.setHostname(hostname_.c_str());
+  logger_.info("Ethernet init started");
   return true;
 }
 
-void NetManager::loop() {}
-bool NetManager::isConnected() const { return connected_; }
-IPAddress NetManager::localIP() const { return ETH.localIP(); }
-String NetManager::hostname() const { return hostname_; }
-
-void NetManager::onEvent(WiFiEvent_t event) {
-  if (instance_ != nullptr) {
-    instance_->handleEvent(event);
-  }
+bool NetManager::isConnected() const {
+  return ethConnected_ && ETH.linkUp();
 }
 
-void NetManager::handleEvent(WiFiEvent_t event) {
+IPAddress NetManager::localIP() const {
+  return ETH.localIP();
+}
+
+void NetManager::loop() {
+}
+
+void NetManager::onEvent(WiFiEvent_t event) {
+  if (!instance_) return;
+
   switch (event) {
     case ARDUINO_EVENT_ETH_START:
-      logger_.info("Ethernet started");
+      instance_->logger_.info("ETH START");
       break;
+
     case ARDUINO_EVENT_ETH_CONNECTED:
-      logger_.info("Ethernet link up");
+      instance_->logger_.info("ETH CONNECTED");
+      instance_->ethConnected_ = true;
       break;
+
     case ARDUINO_EVENT_ETH_GOT_IP:
-      connected_ = true;
-      logger_.info("IP: " + ETH.localIP().toString());
+      instance_->logger_.info("ETH GOT IP: " + ETH.localIP().toString());
+      instance_->ethConnected_ = true;
       break;
+
     case ARDUINO_EVENT_ETH_DISCONNECTED:
-      connected_ = false;
-      logger_.warn("Ethernet disconnected");
+      instance_->logger_.warn("ETH DISCONNECTED");
+      instance_->ethConnected_ = false;
       break;
+
     case ARDUINO_EVENT_ETH_STOP:
-      connected_ = false;
-      logger_.warn("Ethernet stopped");
+      instance_->logger_.warn("ETH STOP");
+      instance_->ethConnected_ = false;
       break;
+
     default:
       break;
   }

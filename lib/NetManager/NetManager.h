@@ -1,23 +1,26 @@
 #pragma once
 
+#include <Arduino.h>
 #include <ETH.h>
-#include <AppTypes.h>
+#include "AppTypes.h"
 #include "LogManager.h"
 
 class NetManager {
- public:
+public:
   explicit NetManager(LogManager& logger);
+
   bool begin(const NetworkSettings& settings);
   void loop();
+
   bool isConnected() const;
   IPAddress localIP() const;
-  String hostname() const;
 
- private:
-  static NetManager* instance_;
-  LogManager& logger_;
-  bool connected_ = false;
-  String hostname_;
+private:
   static void onEvent(WiFiEvent_t event);
-  void handleEvent(WiFiEvent_t event);
+
+  LogManager& logger_;
+  String hostname_;
+  bool ethConnected_ = false;
+
+  static NetManager* instance_;
 };

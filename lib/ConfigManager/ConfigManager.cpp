@@ -1,8 +1,6 @@
 #include "ConfigManager.h"
 
-bool ConfigManager::begin() {
-  return prefs_.begin("ct100", false);
-}
+bool ConfigManager::begin() { return prefs_.begin("ct100", false); }
 
 DeviceConfig ConfigManager::load() {
   config_.network.deviceName = prefs_.getString("dev_name", config_.network.deviceName);
@@ -28,7 +26,10 @@ DeviceConfig ConfigManager::load() {
 
   config_.display.enabled = prefs_.getBool("disp_en", config_.display.enabled);
   config_.display.contrast = prefs_.getUChar("disp_ctr", config_.display.contrast);
-  config_.display.rotation = prefs_.getUChar("disp_rot", config_.display.rotation);
+
+  config_.keypad.enabled = prefs_.getBool("key_en", config_.keypad.enabled);
+  config_.keypad.pcf8574Address = prefs_.getUChar("key_addr", config_.keypad.pcf8574Address);
+
   return config_;
 }
 
@@ -57,18 +58,28 @@ bool ConfigManager::save(const DeviceConfig& config) {
 
   prefs_.putBool("disp_en", config.display.enabled);
   prefs_.putUChar("disp_ctr", config.display.contrast);
-  prefs_.putUChar("disp_rot", config.display.rotation);
+
+  prefs_.putBool("key_en", config.keypad.enabled);
+  prefs_.putUChar("key_addr", config.keypad.pcf8574Address);
   return true;
 }
 
 String ConfigManager::ipToString(const IPAddress& ip) { return ip.toString(); }
+
 IPAddress ConfigManager::stringToIp(const String& ipStr) {
   IPAddress ip;
   ip.fromString(ipStr);
   return ip;
 }
-String ConfigManager::networkModeToString(NetworkMode mode) { return mode == NetworkMode::STATIC ? "static" : "dhcp"; }
-NetworkMode ConfigManager::networkModeFromString(const String& value) { return value == "static" ? NetworkMode::STATIC : NetworkMode::DHCP; }
+
+String ConfigManager::networkModeToString(NetworkMode mode) {
+  return mode == NetworkMode::STATIC ? "static" : "dhcp";
+}
+
+NetworkMode ConfigManager::networkModeFromString(const String& value) {
+  return value == "static" ? NetworkMode::STATIC : NetworkMode::DHCP;
+}
+
 String ConfigManager::tcpModeToString(TcpMode mode) {
   switch (mode) {
     case TcpMode::HOST: return "host";
@@ -76,11 +87,13 @@ String ConfigManager::tcpModeToString(TcpMode mode) {
     default: return "client";
   }
 }
+
 TcpMode ConfigManager::tcpModeFromString(const String& value) {
   if (value == "host") return TcpMode::HOST;
   if (value == "server") return TcpMode::SERVER;
   return TcpMode::CLIENT;
 }
+
 String ConfigManager::rfidEncodingToString(RfidEncoding encoding) {
   switch (encoding) {
     case RfidEncoding::DEC_MODE: return "dec";
@@ -88,6 +101,7 @@ String ConfigManager::rfidEncodingToString(RfidEncoding encoding) {
     default: return "hex";
   }
 }
+
 RfidEncoding ConfigManager::rfidEncodingFromString(const String& value) {
   if (value == "dec") return RfidEncoding::DEC_MODE;
   if (value == "raw") return RfidEncoding::RAW_MODE;

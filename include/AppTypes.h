@@ -3,22 +3,9 @@
 #include <Arduino.h>
 #include <IPAddress.h>
 
-enum class NetworkMode : uint8_t {
-  DHCP = 0,
-  STATIC = 1
-};
-
-enum class TcpMode : uint8_t {
-  CLIENT = 0,
-  HOST = 1,
-  SERVER = 2
-};
-
-enum class RfidEncoding : uint8_t {
-  HEX_MODE = 0,
-  DEC_MODE = 1,
-  RAW_MODE = 2
-};
+enum class NetworkMode : uint8_t { DHCP = 0, STATIC = 1 };
+enum class TcpMode : uint8_t { CLIENT = 0, HOST = 1, SERVER = 2 };
+enum class RfidEncoding : uint8_t { HEX_MODE = 0, DEC_MODE = 1, RAW_MODE = 2 };
 
 struct NetworkSettings {
   String deviceName = "CT-100";
@@ -52,7 +39,11 @@ struct RfidSettings {
 struct DisplaySettings {
   bool enabled = true;
   uint8_t contrast = 180;
-  uint8_t rotation = 0;
+};
+
+struct KeypadSettings {
+  bool enabled = true;
+  uint8_t pcf8574Address = 0x20;
 };
 
 struct DeviceConfig {
@@ -61,4 +52,5 @@ struct DeviceConfig {
   SecuritySettings security;
   RfidSettings rfid;
   DisplaySettings display;
+  KeypadSettings keypad;
 };

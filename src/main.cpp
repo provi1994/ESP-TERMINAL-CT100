@@ -1,14 +1,13 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
-#include <ETH.h>
 
 #include "AppTypes.h"
-#include "Pins.h"
 #include "ConfigManager.h"
 #include "DisplayManager.h"
 #include "KeypadManager.h"
 #include "LogManager.h"
 #include "NetManager.h"
+#include "Pins.h"
 #include "Rfid125kHzUart.h"
 #include "TcpManager.h"
 #include "WebConfigServer.h"
@@ -18,12 +17,9 @@ ConfigManager configManager;
 NetManager netManager(logger);
 DisplayManager display(logger, Pins::LCD_CLK, Pins::LCD_MOSI, Pins::LCD_CS, Pins::LCD_RST);
 Rfid125kHzUart rfid(logger);
+KeypadManager keypad(logger);
 TcpManager tcpManager(logger);
 WebConfigServer webServer(logger);
-
-byte rowPins[4] = {Pins::KEYPAD_ROW_1, Pins::KEYPAD_ROW_2, Pins::KEYPAD_ROW_3, Pins::KEYPAD_ROW_4};
-byte colPins[4] = {Pins::KEYPAD_COL_1, Pins::KEYPAD_COL_2, Pins::KEYPAD_COL_3, Pins::KEYPAD_COL_4};
-KeypadManager keypad(logger, rowPins, colPins);
 
 DeviceConfig cfg;
 unsigned long lastStatusRefresh = 0;
@@ -54,6 +50,10 @@ static void applyRuntimeConfig() {
 
   if (cfg.rfid.enabled) {
     rfid.begin(cfg.rfid.baudRate, Pins::RFID_RX, Pins::RFID_TX, cfg.rfid.encoding);
+  }
+
+  if (cfg.keypad.enabled) {
+    keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL);
   }
 
   tcpManager.begin(cfg.tcp);
@@ -104,15 +104,16 @@ void loop() {
   netManager.loop();
   webServer.loop();
   tcpManager.loop();
-  if (cfg.rfid.enabled) rfid.loop();
-  keypad.loop();
 
-  if (cfg.display.enabled && millis() - lastStatusRefresh > 1000) {
+  if (cfg.rfid.enabled) rfid.loop();
+  if (cfg.keypad.enabled) keypad.loop();
+
+  if (cfg.display.enabled && millis() - lastStatusRefresh > 1000UL) {
     lastStatusRefresh = millis();
     display.showStatus(
-        "IP: " + netManager.localIP().toString(),
-        "RFID: " + (lastCard.isEmpty() ? String("-") : lastCard.substring(0, 12)),
-        "KEY: " + (lastKey.isEmpty() ? String("-") : lastKey),
-        "TCP: " + ConfigManager::tcpModeToString(cfg.tcp.mode));
+        "IP:" + netManager.localIP().toString(),
+        "RFID:" + (lastCard.isEmpty() ? String("-") : lastCard.substring(0, 14)),
+        "KEY:" + (lastKey.isEmpty() ? String("-") : lastKey),
+        "TCP:" + ConfigManager::tcpModeToString(cfg.tcp.mode));
   }
 }

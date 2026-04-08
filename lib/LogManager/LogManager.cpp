@@ -7,7 +7,7 @@ void LogManager::warn(const String& msg) { add("WARN", msg); }
 void LogManager::error(const String& msg) { add("ERROR", msg); }
 
 void LogManager::add(const String& level, const String& msg) {
-  String line = "[" + timestamp() + "] [" + level + "] " + msg;
+  const String line = timestamp() + " [" + level + "] " + msg;
   Serial.println(line);
   entries_.push_back(line);
   while (entries_.size() > maxEntries_) {
@@ -17,16 +17,16 @@ void LogManager::add(const String& level, const String& msg) {
 
 String LogManager::toText() const {
   String out;
-  for (const auto& line : entries_) {
-    out += line + "\n";
+  for (const String& entry : entries_) {
+    out += entry + "\n";
   }
   return out;
 }
 
 String LogManager::toHtml() const {
   String out = "<pre>";
-  for (const auto& line : entries_) {
-    out += htmlEscape(line) + "\n";
+  for (const String& entry : entries_) {
+    out += htmlEscape(entry) + "\n";
   }
   out += "</pre>";
   return out;
@@ -37,18 +37,20 @@ std::vector<String> LogManager::snapshot() const {
 }
 
 String LogManager::htmlEscape(const String& value) {
-  String out = value;
-  out.replace("&", "&amp;");
-  out.replace("<", "&lt;");
-  out.replace(">", "&gt;");
-  out.replace("\"", "&quot;");
+  String out;
+  out.reserve(value.length() + 16);
+  for (size_t i = 0; i < value.length(); ++i) {
+    switch (value[i]) {
+      case '&': out += "&amp;"; break;
+      case '<': out += "&lt;"; break;
+      case '>': out += "&gt;"; break;
+      case '"': out += "&quot;"; break;
+      default: out += value[i]; break;
+    }
+  }
   return out;
 }
 
 String LogManager::timestamp() {
-  const unsigned long ms = millis();
-  const unsigned long sec = ms / 1000UL;
-  char buffer[24];
-  snprintf(buffer, sizeof(buffer), "%lu.%03lu", sec, ms % 1000UL);
-  return String(buffer);
+  return String(millis());
 }

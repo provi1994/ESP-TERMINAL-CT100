@@ -2,8 +2,10 @@
 
 #include <Arduino.h>
 #include <ETH.h>
-#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiServer.h>
 #include <memory>
+
 #include "AppTypes.h"
 #include "LogManager.h"
 

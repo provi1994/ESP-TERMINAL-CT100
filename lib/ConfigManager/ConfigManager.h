@@ -1,13 +1,15 @@
 #pragma once
 
 #include <Preferences.h>
-#include <AppTypes.h>
+
+#include "AppTypes.h"
 
 class ConfigManager {
  public:
   bool begin();
   DeviceConfig load();
   bool save(const DeviceConfig& config);
+
   const DeviceConfig& current() const { return config_; }
   void setCurrent(const DeviceConfig& config) { config_ = config; }
 

@@ -103,7 +103,6 @@ void TcpManager::readClient(WiFiClient& client) {
     if (c == '\r') {
       continue;
     }
-
     if (c == '\n') {
       if (!lastMessage_.isEmpty()) {
         logger_.info("TCP RX: " + lastMessage_);
@@ -121,12 +120,16 @@ bool TcpManager::sendLine(const String& line) {
   const String out = line + "\r\n";
 
   if (settings_.mode == TcpMode::CLIENT) {
-    if (!client_.connected()) return false;
+    if (!client_.connected()) {
+      return false;
+    }
     client_.print(out);
     return true;
   }
 
-  if (!incomingClient_.connected()) return false;
+  if (!incomingClient_.connected()) {
+    return false;
+  }
   incomingClient_.print(out);
   return true;
 }
@@ -139,7 +142,6 @@ bool TcpManager::sendRaw(const uint8_t* data, size_t len) {
   if (settings_.mode == TcpMode::CLIENT) {
     return client_.connected() && client_.write(data, len) == len;
   }
-
   return incomingClient_.connected() && incomingClient_.write(data, len) == len;
 }
 

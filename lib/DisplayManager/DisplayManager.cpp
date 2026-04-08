@@ -7,7 +7,7 @@ void DisplayManager::begin(uint8_t contrast) {
   u8g2_.begin();
   u8g2_.setContrast(contrast);
   u8g2_.setFont(u8g2_font_6x12_tf);
-  logger_.info("ST7920 display initialized");
+  logger_.info("ST7920 display initialized in 3-wire serial mode");
 }
 
 void DisplayManager::drawHeader(const String& title) {
@@ -19,34 +19,39 @@ void DisplayManager::drawHeader(const String& title) {
   u8g2_.setDrawColor(1);
 }
 
+String DisplayManager::fit(const String& text, size_t maxLen) {
+  if (text.length() <= maxLen) return text;
+  return text.substring(0, maxLen);
+}
+
 void DisplayManager::showBoot(const String& deviceName) {
   drawHeader("CT-100");
   u8g2_.drawStr(4, 24, "Start systemu");
-  u8g2_.drawStr(4, 38, deviceName.c_str());
-  u8g2_.drawStr(4, 52, "Ethernet + Web + TCP");
+  u8g2_.drawStr(4, 38, fit(deviceName, 20).c_str());
+  u8g2_.drawStr(4, 52, "ETH + RFID + TCP");
   u8g2_.sendBuffer();
 }
 
 void DisplayManager::showStatus(const String& line1, const String& line2, const String& line3, const String& line4) {
   drawHeader("Status");
-  u8g2_.drawStr(4, 24, line1.c_str());
-  u8g2_.drawStr(4, 36, line2.c_str());
-  u8g2_.drawStr(4, 48, line3.c_str());
-  u8g2_.drawStr(4, 60, line4.c_str());
+  u8g2_.drawStr(4, 24, fit(line1, 20).c_str());
+  u8g2_.drawStr(4, 36, fit(line2, 20).c_str());
+  u8g2_.drawStr(4, 48, fit(line3, 20).c_str());
+  u8g2_.drawStr(4, 60, fit(line4, 20).c_str());
   u8g2_.sendBuffer();
 }
 
 void DisplayManager::showCard(const String& card) {
   drawHeader("RFID");
   u8g2_.drawStr(4, 24, "Odczyt karty:");
-  u8g2_.drawStr(4, 40, card.c_str());
+  u8g2_.drawStr(4, 40, fit(card, 20).c_str());
   u8g2_.sendBuffer();
 }
 
 void DisplayManager::showTcp(const String& message) {
   drawHeader("TCP");
   u8g2_.drawStr(4, 24, "Ostatnia ramka:");
-  u8g2_.drawStr(4, 40, message.substring(0, 20).c_str());
-  u8g2_.drawStr(4, 54, message.substring(20, 40).c_str());
+  u8g2_.drawStr(4, 40, fit(message, 20).c_str());
+  u8g2_.drawStr(4, 54, fit(message.substring(20), 20).c_str());
   u8g2_.sendBuffer();
 }

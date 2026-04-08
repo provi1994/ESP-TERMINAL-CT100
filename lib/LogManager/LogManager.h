@@ -20,6 +20,7 @@ class LogManager {
  private:
   size_t maxEntries_;
   std::deque<String> entries_;
+
   static String htmlEscape(const String& value);
   static String timestamp();
 };

@@ -14,7 +14,7 @@ void Rfid125kHzUart::onCard(std::function<void(const String&, const String&)> ca
 
 void Rfid125kHzUart::loop() {
   while (serial_.available()) {
-    char c = static_cast<char>(serial_.read());
+    const char c = static_cast<char>(serial_.read());
     if (c == '\r' || c == '\n') {
       if (!buffer_.isEmpty()) {
         processFrame(buffer_);
@@ -30,10 +30,11 @@ void Rfid125kHzUart::loop() {
   }
 }
 
-void Rfid125kHzUart::processFrame(String raw) {
-  String normalized = normalizeFrame(raw);
+void Rfid125kHzUart::processFrame(const String& raw) {
+  const String normalized = normalizeFrame(raw);
   if (normalized.isEmpty()) return;
-  String encoded = encodeTag(normalized);
+
+  const String encoded = encodeTag(normalized);
   logger_.info("RFID card: raw=" + normalized + " encoded=" + encoded);
   if (callback_) callback_(normalized, encoded);
 }
@@ -41,30 +42,37 @@ void Rfid125kHzUart::processFrame(String raw) {
 String Rfid125kHzUart::normalizeFrame(const String& raw) const {
   String out;
   for (size_t i = 0; i < raw.length(); ++i) {
-    char c = raw[i];
-    if (isHexadecimalDigit(c)) out += static_cast<char>(toupper(c));
+    const char c = raw[i];
+    if (isHexadecimalDigit(c)) {
+      out += static_cast<char>(toupper(static_cast<unsigned char>(c)));
+    }
   }
   if (out.length() >= 8 && isHexString(out)) return out;
   return raw;
 }
 
 String Rfid125kHzUart::encodeTag(const String& normalized) const {
-  if (encoding_ == RfidEncoding::RAW_MODE) return normalized;
-  if (encoding_ == RfidEncoding::HEX_MODE || !isHexString(normalized)) return normalized;
+  if (encoding_ == RfidEncoding::RAW_MODE || !isHexString(normalized)) {
+    return normalized;
+  }
+  if (encoding_ == RfidEncoding::HEX_MODE) {
+    return normalized;
+  }
 
   unsigned long long value = 0;
   for (size_t i = 0; i < normalized.length(); ++i) {
-    char c = normalized[i];
-    value <<= 4;
-    if (c >= '0' && c <= '9') value += c - '0';
-    else value += 10 + (c - 'A');
+    const char c = normalized[i];
+    value <<= 4U;
+    value += (c >= '0' && c <= '9') ? static_cast<unsigned long long>(c - '0')
+                                     : static_cast<unsigned long long>(10 + (c - 'A'));
   }
-  return String(static_cast<unsigned long>(value));
+  return String(value);
 }
 
 bool Rfid125kHzUart::isHexString(const String& value) {
+  if (value.isEmpty()) return false;
   for (size_t i = 0; i < value.length(); ++i) {
     if (!isHexadecimalDigit(value[i])) return false;
   }
-  return !value.isEmpty();
+  return true;
 }

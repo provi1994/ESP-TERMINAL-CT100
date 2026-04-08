@@ -2,13 +2,14 @@
 
 #include <WebServer.h>
 #include <functional>
-#include <AppTypes.h>
+
 #include "ConfigManager.h"
 #include "LogManager.h"
 
 class WebConfigServer {
  public:
   explicit WebConfigServer(LogManager& logger);
+
   void begin(const DeviceConfig& config);
   void loop();
   void onSave(std::function<void(DeviceConfig)> callback);
@@ -30,5 +31,6 @@ class WebConfigServer {
   void handleSave();
   void handleLogs();
   void handleStatus();
+  void handleReboot();
   String buildPage(const DeviceConfig& cfg) const;
 };

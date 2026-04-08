@@ -1,8 +1,10 @@
 #pragma once
 
+#include <Arduino.h>
 #include <HardwareSerial.h>
 #include <functional>
-#include <AppTypes.h>
+
+#include "AppTypes.h"
 #include "LogManager.h"
 
 class Rfid125kHzUart {
@@ -21,7 +23,7 @@ class Rfid125kHzUart {
   String buffer_;
   std::function<void(const String&, const String&)> callback_;
 
-  void processFrame(String raw);
+  void processFrame(const String& raw);
   String normalizeFrame(const String& raw) const;
   String encodeTag(const String& normalized) const;
   static bool isHexString(const String& value);

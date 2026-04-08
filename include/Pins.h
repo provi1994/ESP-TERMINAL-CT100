@@ -1,27 +1,25 @@
 #pragma once
 
-// WT32-ETH01: część GPIO jest zajęta przez PHY Ethernet.
-// Poniższe mapowanie jest propozycją startową i może wymagać korekty
-// pod Twoją finalną płytkę / sposób okablowania.
+#include <Arduino.h>
 
 namespace Pins {
-// RFID 125 kHz po UART2
-static constexpr int RFID_RX = 32;
-static constexpr int RFID_TX = 33;
+// WT32-ETH01 Ethernet (NIE UŻYWAĆ DO INNYCH CELÓW)
+static constexpr int ETH_POWER = 16;
+static constexpr int ETH_MDC = 23;
+static constexpr int ETH_MDIO = 18;
 
-// ST7920 w trybie software SPI przez U8g2
-static constexpr int LCD_CLK = 14;
-static constexpr int LCD_MOSI = 15;
-static constexpr int LCD_CS = 2;
-static constexpr int LCD_RST = 4;
+// RFID UART2
+static constexpr int RFID_RX = 5;   // ESP RX2 -> TX czytnika
+static constexpr int RFID_TX = 17;  // ESP TX2 -> RX czytnika (jeśli używany)
 
-// Klawiatura 4x4 membranowa
-static constexpr int KEYPAD_ROW_1 = 16;
-static constexpr int KEYPAD_ROW_2 = 17;
-static constexpr int KEYPAD_ROW_3 = 5;
-static constexpr int KEYPAD_ROW_4 = 13;
-static constexpr int KEYPAD_COL_1 = 34;
-static constexpr int KEYPAD_COL_2 = 35;
-static constexpr int KEYPAD_COL_3 = 36;
-static constexpr int KEYPAD_COL_4 = 39;
+// I2C -> PCF8574 dla klawiatury 4x4
+static constexpr int I2C_SCL = 32;
+static constexpr int I2C_SDA = 33;
+
+// LCD ST7920 w trybie szeregowym 3-wire
+// PSB wyświetlacza musi być podłączony do GND.
+static constexpr int LCD_CLK = 14;   // E / SCLK
+static constexpr int LCD_MOSI = 4;   // RW / SID
+static constexpr int LCD_CS = 15;    // RS / CS
+static constexpr uint8_t LCD_RST = 255; // U8X8_PIN_NONE bez zależności od U8g2lib.h
 }
