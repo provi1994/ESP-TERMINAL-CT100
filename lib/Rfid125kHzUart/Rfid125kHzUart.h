@@ -14,8 +14,11 @@ public:
 
   void begin(uint32_t baudRate, int rxPin, int txPin, RfidEncoding encoding);
   void setEncoding(RfidEncoding encoding);
+  RfidEncoding encoding() const;
   void loop();
   void onCard(std::function<void(const String&, const String&)> callback);
+
+  bool buildScaleFrame(const String& normalized, std::vector<uint8_t>& out) const;
 
 private:
   HardwareSerial serial_;
@@ -32,6 +35,7 @@ private:
 
   String normalizeFrame(const String& raw) const;
   String encodeTag(const String& normalized) const;
+  String decimalStringFromHex(const String& normalized) const;
 
   static bool isHexString(const String& value);
   static String bytesToHex(const uint8_t* data, size_t len);

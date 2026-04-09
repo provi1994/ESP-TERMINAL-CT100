@@ -335,7 +335,7 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body)
     cfg.rfid.baudRate = parseUInt32Field(body, "baudRate", cfg.rfid.baudRate);
 
     const String rfidEnc = parseStringField(body, "encoding", "");
-    if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw") {
+    if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw" || rfidEnc == "scale_frame") {
         cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(rfidEnc);
     }
 
@@ -396,6 +396,7 @@ String WebConfigServer::buildPage(const DeviceConfig& cfg) const {
     html += F("<option value='hex'"); if (cfg.rfid.encoding == RfidEncoding::HEX_MODE) html += F(" selected"); html += F(">HEX</option>");
     html += F("<option value='dec'"); if (cfg.rfid.encoding == RfidEncoding::DEC_MODE) html += F(" selected"); html += F(">DEC</option>");
     html += F("<option value='raw'"); if (cfg.rfid.encoding == RfidEncoding::RAW_MODE) html += F(" selected"); html += F(">RAW</option>");
+    html += F("<option value='scale_frame'"); if (cfg.rfid.encoding == RfidEncoding::SCALE_FRAME_MODE) html += F(" selected"); html += F(">SCALE FRAME</option>");
     html += F("</select></fieldset>");
 
     html += F("<fieldset><legend>Wyświetlacz i klawiatura</legend>");

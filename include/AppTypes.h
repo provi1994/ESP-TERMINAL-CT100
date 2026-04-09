@@ -16,7 +16,8 @@ enum class TcpMode : uint8_t {
 enum class RfidEncoding : uint8_t {
     HEX_MODE = 0,
     DEC_MODE = 1,
-    RAW_MODE = 2
+    RAW_MODE = 2,
+    SCALE_FRAME_MODE = 3
 };
 
 struct NetworkSettings {

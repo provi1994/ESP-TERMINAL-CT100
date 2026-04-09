@@ -58,16 +58,26 @@ static String activeHeaderText() {
 
 static String buildStatusText() {
     String out;
-    out += "device=" + cfg.network.deviceName + "\n";
-    out += "ip=" + netManager.localIP().toString() + "\n";
-    out += "rfid_last=" + lastCard + "\n";
-    out += "key_last=" + lastKey + "\n";
-    out += "cmd_tcp_mode=" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\n";
-    out += "cmd_tcp_last=" + tcpManager.lastMessage() + "\n";
-    out += "scale_enabled=" + String(cfg.scaleTcp.enabled ? "on" : "off") + "\n";
-    out += "scale_tcp_mode=" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\n";
-    out += "weight=" + currentWeight + "\n";
-    out += "header=" + activeHeaderText() + "\n";
+    out += "device=" + cfg.network.deviceName + "
+";
+    out += "ip=" + netManager.localIP().toString() + "
+";
+    out += "rfid_last=" + lastCard + "
+";
+    out += "key_last=" + lastKey + "
+";
+    out += "cmd_tcp_mode=" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "
+";
+    out += "cmd_tcp_last=" + tcpManager.lastMessage() + "
+";
+    out += "scale_enabled=" + String(cfg.scaleTcp.enabled ? "on" : "off") + "
+";
+    out += "scale_tcp_mode=" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "
+";
+    out += "weight=" + currentWeight + "
+";
+    out += "header=" + activeHeaderText() + "
+";
     return out;
 }
 
@@ -248,6 +258,18 @@ void setup() {
         if (cfg.display.enabled) {
             display.showCard(encoded);
         }
+
+        if (cfg.rfid.encoding == RfidEncoding::SCALE_FRAME_MODE) {
+            std::vector<uint8_t> frame;
+            if (rfid.buildScaleFrame(raw, frame)) {
+                tcpManager.sendRaw(frame.data(), frame.size());
+                logger.info("RFID SCALE frame TX len=" + String(frame.size()));
+            } else {
+                logger.warn("RFID SCALE frame not sent for raw=" + raw + " encoded=" + encoded);
+            }
+            return;
+        }
+
         const String payload = "RFID:" + encoded + ";RAW:" + raw;
         tcpManager.sendLine(payload);
     });

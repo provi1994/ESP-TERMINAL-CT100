@@ -124,6 +124,7 @@ String ConfigManager::rfidEncodingToString(RfidEncoding encoding) {
     switch (encoding) {
         case RfidEncoding::DEC_MODE: return "dec";
         case RfidEncoding::RAW_MODE: return "raw";
+        case RfidEncoding::SCALE_FRAME_MODE: return "scale_frame";
         default: return "hex";
     }
 }
@@ -131,5 +132,6 @@ String ConfigManager::rfidEncodingToString(RfidEncoding encoding) {
 RfidEncoding ConfigManager::rfidEncodingFromString(const String& value) {
     if (value == "dec") return RfidEncoding::DEC_MODE;
     if (value == "raw") return RfidEncoding::RAW_MODE;
+    if (value == "scale_frame") return RfidEncoding::SCALE_FRAME_MODE;
     return RfidEncoding::HEX_MODE;
 }

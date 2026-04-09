@@ -16,6 +16,10 @@ void Rfid125kHzUart::setEncoding(RfidEncoding encoding) {
   encoding_ = encoding;
 }
 
+RfidEncoding Rfid125kHzUart::encoding() const {
+  return encoding_;
+}
+
 void Rfid125kHzUart::onCard(std::function<void(const String&, const String&)> callback) {
   callback_ = callback;
 }
@@ -132,6 +136,18 @@ String Rfid125kHzUart::normalizeFrame(const String& raw) const {
   return raw;
 }
 
+String Rfid125kHzUart::decimalStringFromHex(const String& normalized) const {
+  unsigned long long value = 0;
+  for (size_t i = 0; i < normalized.length(); ++i) {
+    const char c = normalized[i];
+    value <<= 4U;
+    value += (c >= '0' && c <= '9')
+                 ? static_cast<unsigned long long>(c - '0')
+                 : static_cast<unsigned long long>(10 + (c - 'A'));
+  }
+  return String(value);
+}
+
 String Rfid125kHzUart::encodeTag(const String& normalized) const {
   if (encoding_ == RfidEncoding::RAW_MODE || !isHexString(normalized)) {
     return normalized;
@@ -141,16 +157,34 @@ String Rfid125kHzUart::encodeTag(const String& normalized) const {
     return normalized;
   }
 
-  unsigned long long value = 0;
-  for (size_t i = 0; i < normalized.length(); ++i) {
-    const char c = normalized[i];
-    value <<= 4U;
-    value += (c >= '0' && c <= '9')
-                 ? static_cast<unsigned long long>(c - '0')
-                 : static_cast<unsigned long long>(10 + (c - 'A'));
+  return decimalStringFromHex(normalized);
+}
+
+bool Rfid125kHzUart::buildScaleFrame(const String& normalized, std::vector<uint8_t>& out) const {
+  out.clear();
+
+  if (!isHexString(normalized)) {
+    logger_.warn("RFID SCALE frame: raw is not HEX: " + normalized);
+    return false;
   }
 
-  return String(value);
+  const String dec = decimalStringFromHex(normalized);
+
+  if (dec == "5750") {
+    out = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x95,0x93,0x91,0x93,0xE5,0xEB};
+    return true;
+  }
+  if (dec == "3831") {
+    out = {0xF6,0xF6,0xF6,0xF6,0xF6,0xD6,0xD6,0xF6,0xF6,0xF6,0xEC,0xAC,0xD5,0xCD,0x45,0x2B,0xEB};
+    return true;
+  }
+  if (dec == "213" || dec == "0213") {
+    out = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x75,0x9F,0x77,0x95,0xE5,0xEB};
+    return true;
+  }
+
+  logger_.warn("RFID SCALE frame: no mapping for DEC=" + dec + " HEX=" + normalized);
+  return false;
 }
 
 bool Rfid125kHzUart::isHexString(const String& value) {
