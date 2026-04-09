@@ -36,6 +36,19 @@ unsigned long remoteStatusUntil = 0;
 
 String currentWeight = "---";
 
+enum class BootScreenPhase : uint8_t {
+    LOGO = 0,
+    MODULES = 1,
+    TCP = 2,
+    DONE = 3
+};
+
+unsigned long bootSequenceStart = 0;
+BootScreenPhase bootPhase = BootScreenPhase::DONE;
+
+bool keypadDetected = false;
+String rfidStatus = "OFF";
+
 static String activeHeaderText() {
     if (remoteStatusUntil > millis() && !remoteStatusText.isEmpty()) {
         return remoteStatusText;
@@ -58,6 +71,73 @@ static String buildStatusText() {
     return out;
 }
 
+static String tcpModeLabel(TcpMode mode) {
+    switch (mode) {
+        case TcpMode::CLIENT: return "CLIENT";
+        case TcpMode::HOST:   return "HOST";
+        case TcpMode::SERVER: return "SERVER";
+        default:              return "?";
+    }
+}
+
+static String ipText() {
+    IPAddress ip = netManager.localIP();
+    if (ip == IPAddress((uint32_t)0)) {
+        return "0.0.0.0";
+    }
+    return ip.toString();
+}
+
+static void renderBootSequence() {
+    if (!cfg.display.enabled) return;
+
+    const unsigned long elapsed = millis() - bootSequenceStart;
+
+    if (elapsed < 3000UL) {
+        bootPhase = BootScreenPhase::LOGO;
+        display.showLogo();
+        return;
+    }
+
+    if (elapsed < 6500UL) {
+        bootPhase = BootScreenPhase::MODULES;
+
+        const String line1 = "RFID: " + rfidStatus;
+        const String line2 = cfg.keypad.enabled
+            ? ("KEYPAD: " + String(keypadDetected ? "OK" : "BRAK"))
+            : "KEYPAD: OFF";
+        const String line3 = "IP: " + ipText();
+        const String line4 = "NET: " + String(cfg.network.mode == NetworkMode::DHCP ? "DHCP" : "STATIC");
+
+        display.showInfo("START / MODULY", line1, line2, line3, line4);
+        return;
+    }
+
+    if (elapsed < 10000UL) {
+        bootPhase = BootScreenPhase::TCP;
+
+        String cmdLine1 = "CMD: " + tcpModeLabel(cfg.tcp.mode);
+        String cmdLine2 = (cfg.tcp.mode == TcpMode::CLIENT)
+            ? ("-> " + cfg.tcp.serverIp + ":" + String(cfg.tcp.serverPort))
+            : ("LISTEN:" + String(cfg.tcp.listenPort));
+
+        String scaleLine1 = "WAGA: " + String(cfg.scaleTcp.enabled ? tcpModeLabel(cfg.scaleTcp.mode) : "OFF");
+        String scaleLine2;
+        if (!cfg.scaleTcp.enabled) {
+            scaleLine2 = "-";
+        } else if (cfg.scaleTcp.mode == TcpMode::CLIENT) {
+            scaleLine2 = "-> " + cfg.scaleTcp.serverIp + ":" + String(cfg.scaleTcp.serverPort);
+        } else {
+            scaleLine2 = "LISTEN:" + String(cfg.scaleTcp.listenPort);
+        }
+
+        display.showInfo("START / TCP", cmdLine1, cmdLine2, scaleLine1, scaleLine2);
+        return;
+    }
+
+    bootPhase = BootScreenPhase::DONE;
+}
+
 static void applyRuntimeConfig() {
     ArduinoOTA.setHostname(cfg.network.deviceName.c_str());
     ArduinoOTA.setPassword(cfg.security.otaPassword.c_str());
@@ -66,15 +146,22 @@ static void applyRuntimeConfig() {
 
     if (cfg.display.enabled) {
         display.begin(cfg.display.contrast);
-        display.showBoot(cfg.network.deviceName);
+        display.showLogo();
+        bootSequenceStart = millis();
+        bootPhase = BootScreenPhase::LOGO;
     }
 
     if (cfg.rfid.enabled) {
         rfid.begin(cfg.rfid.baudRate, Pins::RFID_RX, Pins::RFID_TX, cfg.rfid.encoding);
+        rfidStatus = "ON(UART)";
+    } else {
+        rfidStatus = "OFF";
     }
 
     if (cfg.keypad.enabled) {
-        keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL);
+        keypadDetected = keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL);
+    } else {
+        keypadDetected = false;
     }
 
     tcpManager.begin(cfg.tcp);
@@ -198,10 +285,12 @@ void loop() {
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();
 
-    if (cfg.display.enabled && millis() - lastStatusRefresh > 500UL) {
+    if (cfg.display.enabled && millis() - lastStatusRefresh > 250UL) {
         lastStatusRefresh = millis();
 
-        if (lcdCustomUntil > millis()) {
+        if (bootPhase != BootScreenPhase::DONE) {
+            renderBootSequence();
+        } else if (lcdCustomUntil > millis()) {
             display.showTcp(lcdCustomText);
         } else {
             display.showIdleWeight(

@@ -8,8 +8,10 @@ class DisplayManager {
   DisplayManager(LogManager& logger, uint8_t clk, uint8_t mosi, uint8_t cs, uint8_t rst);
 
   void begin(uint8_t contrast);
+  void showLogo();
   void showBoot(const String& deviceName);
   void showStatus(const String& line1, const String& line2, const String& line3, const String& line4);
+  void showInfo(const String& title, const String& line1, const String& line2, const String& line3, const String& line4);
   void showCard(const String& card);
   void showTcp(const String& message);
   void showIdleWeight(const String& header, const String& weight, const String& prompt);
