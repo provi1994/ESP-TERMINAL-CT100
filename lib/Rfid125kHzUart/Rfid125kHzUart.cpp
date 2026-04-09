@@ -16,10 +16,6 @@ void Rfid125kHzUart::setEncoding(RfidEncoding encoding) {
   encoding_ = encoding;
 }
 
-RfidEncoding Rfid125kHzUart::encoding() const {
-  return encoding_;
-}
-
 void Rfid125kHzUart::onCard(std::function<void(const String&, const String&)> callback) {
   callback_ = callback;
 }
@@ -136,7 +132,7 @@ String Rfid125kHzUart::normalizeFrame(const String& raw) const {
   return raw;
 }
 
-String Rfid125kHzUart::decimalStringFromHex(const String& normalized) const {
+String Rfid125kHzUart::hexToDecString(const String& normalized) const {
   unsigned long long value = 0;
   for (size_t i = 0; i < normalized.length(); ++i) {
     const char c = normalized[i];
@@ -157,33 +153,43 @@ String Rfid125kHzUart::encodeTag(const String& normalized) const {
     return normalized;
   }
 
-  return decimalStringFromHex(normalized);
+  const String dec = hexToDecString(normalized);
+
+  if (encoding_ == RfidEncoding::DEC_MODE || encoding_ == RfidEncoding::SCALE_FRAME_MODE) {
+    return dec;
+  }
+
+  return normalized;
 }
 
-bool Rfid125kHzUart::buildScaleFrame(const String& normalized, std::vector<uint8_t>& out) const {
-  out.clear();
+bool Rfid125kHzUart::buildScaleFrame(const String& encoded, std::vector<uint8_t>& outFrame) const {
+  outFrame.clear();
 
-  if (!isHexString(normalized)) {
-    logger_.warn("RFID SCALE frame: raw is not HEX: " + normalized);
+  String dec = encoded;
+  dec.trim();
+  if (dec.isEmpty()) {
     return false;
   }
 
-  const String dec = decimalStringFromHex(normalized);
-
   if (dec == "5750") {
-    out = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x95,0x93,0x91,0x93,0xE5,0xEB};
-    return true;
-  }
-  if (dec == "3831") {
-    out = {0xF6,0xF6,0xF6,0xF6,0xF6,0xD6,0xD6,0xF6,0xF6,0xF6,0xEC,0xAC,0xD5,0xCD,0x45,0x2B,0xEB};
-    return true;
-  }
-  if (dec == "213" || dec == "0213") {
-    out = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x75,0x9F,0x77,0x95,0xE5,0xEB};
+    const uint8_t frame[] = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x95,0x93,0x91,0x93,0xE5,0xEB};
+    outFrame.assign(frame, frame + sizeof(frame));
     return true;
   }
 
-  logger_.warn("RFID SCALE frame: no mapping for DEC=" + dec + " HEX=" + normalized);
+  if (dec == "3831") {
+    const uint8_t frame[] = {0xF6,0xF6,0xF6,0xF6,0xF6,0xD6,0xD6,0xF6,0xF6,0xF6,0xEC,0xAC,0xD5,0xCD,0x45,0x2B,0xEB};
+    outFrame.assign(frame, frame + sizeof(frame));
+    return true;
+  }
+
+  if (dec == "213" || dec == "0213") {
+    const uint8_t frame[] = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x75,0x9F,0x77,0x95,0xE5,0xEB};
+    outFrame.assign(frame, frame + sizeof(frame));
+    return true;
+  }
+
+  logger_.warn("SCALE_FRAME_MODE: brak mapowania dla DEC=" + dec);
   return false;
 }
 
