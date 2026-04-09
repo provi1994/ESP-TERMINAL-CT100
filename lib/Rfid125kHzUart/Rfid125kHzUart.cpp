@@ -132,7 +132,7 @@ String Rfid125kHzUart::normalizeFrame(const String& raw) const {
   return raw;
 }
 
-String Rfid125kHzUart::hexToDecString(const String& normalized) const {
+String Rfid125kHzUart::decode13BitCardNumber(const String& normalized) const {
   unsigned long long value = 0;
   for (size_t i = 0; i < normalized.length(); ++i) {
     const char c = normalized[i];
@@ -141,7 +141,9 @@ String Rfid125kHzUart::hexToDecString(const String& normalized) const {
                  ? static_cast<unsigned long long>(c - '0')
                  : static_cast<unsigned long long>(10 + (c - 'A'));
   }
-  return String(value);
+
+  const uint16_t cardNumber = static_cast<uint16_t>(value & 0x1FFFULL);
+  return String(cardNumber);
 }
 
 String Rfid125kHzUart::encodeTag(const String& normalized) const {
@@ -153,43 +155,49 @@ String Rfid125kHzUart::encodeTag(const String& normalized) const {
     return normalized;
   }
 
-  const String dec = hexToDecString(normalized);
-
   if (encoding_ == RfidEncoding::DEC_MODE || encoding_ == RfidEncoding::SCALE_FRAME_MODE) {
-    return dec;
+    return decode13BitCardNumber(normalized);
   }
 
   return normalized;
 }
 
-bool Rfid125kHzUart::buildScaleFrame(const String& encoded, std::vector<uint8_t>& outFrame) const {
+bool Rfid125kHzUart::buildScaleFrameFromCardNumber(const String& cardNumber, std::vector<uint8_t>& outFrame) const {
   outFrame.clear();
 
-  String dec = encoded;
-  dec.trim();
-  if (dec.isEmpty()) {
-    return false;
-  }
+  String number = cardNumber;
+  number.trim();
 
-  if (dec == "5750") {
-    const uint8_t frame[] = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x95,0x93,0x91,0x93,0xE5,0xEB};
-    outFrame.assign(frame, frame + sizeof(frame));
-    return true;
-  }
-
-  if (dec == "3831") {
+  if (number == "3831") {
     const uint8_t frame[] = {0xF6,0xF6,0xF6,0xF6,0xF6,0xD6,0xD6,0xF6,0xF6,0xF6,0xEC,0xAC,0xD5,0xCD,0x45,0x2B,0xEB};
     outFrame.assign(frame, frame + sizeof(frame));
     return true;
   }
 
-  if (dec == "213" || dec == "0213") {
-    const uint8_t frame[] = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x75,0x9F,0x77,0x95,0xE5,0xEB};
+  if (number == "213") {
+    const uint8_t frame[] = {0xF6,0xF6,0xF6,0xF6,0xF6,0xD6,0xD6,0xF6,0xF6,0xF6,0xEC,0xAC,0xD7,0x76,0x55,0x2B,0xEB};
     outFrame.assign(frame, frame + sizeof(frame));
     return true;
   }
 
-  logger_.warn("SCALE_FRAME_MODE: brak mapowania dla DEC=" + dec);
+  if (number == "1552") {
+    const uint8_t frame[] = {0xF6,0xF6,0xF6,0xF6,0xF6,0xD6,0xD6,0xF6,0xF6,0xF6,0xAC,0x6C,0x36,0xD6,0xF6,0x56,0x6F,0xFF};
+    outFrame.assign(frame, frame + sizeof(frame));
+    return true;
+  }
+
+  if (number == "218") {
+    const uint8_t frame[] = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8D,0x97,0x9F,0x77,0x7D,0xE5,0xEB};
+    outFrame.assign(frame, frame + sizeof(frame));
+    return true;
+  }
+
+  if (number == "5750") {
+    const uint8_t frame[] = {0x9F,0x9F,0x9F,0x9F,0x9F,0x9F,0x9D,0x9D,0x9F,0x9F,0x8F,0x8F,0x95,0x93,0x91,0x93,0xE5,0xEB};
+    outFrame.assign(frame, frame + sizeof(frame));
+    return true;
+  }
+
   return false;
 }
 

@@ -4,6 +4,12 @@
 #include "ConfigManager.h"
 #include "LogManager.h"
 
+enum class WebUserRole : uint8_t {
+    NONE = 0,
+    SERVICE = 1,
+    ADMIN = 2
+};
+
 class WebConfigServer {
 public:
     explicit WebConfigServer(LogManager& logger);
@@ -16,6 +22,7 @@ public:
 
     void setConfigProvider(std::function<DeviceConfig()> provider);
     void setStatusProvider(std::function<String()> provider);
+    void setRuntimeJsonProvider(std::function<String()> provider);
 
 private:
     LogManager& logger_;
@@ -25,12 +32,16 @@ private:
     std::function<void()> onReboot_;
     std::function<DeviceConfig()> configProvider_;
     std::function<String()> statusProvider_;
+    std::function<String()> runtimeJsonProvider_;
 
     bool authenticate();
+    bool isAdmin();
+    WebUserRole detectRole();
+    String currentUserName();
+    String currentRoleName();
     DeviceConfig activeConfig() const;
 
     void handleRoot();
-    void handleSave();
     void handleLogs();
     void handleStatus();
     void handleReboot();
@@ -38,11 +49,17 @@ private:
     void handleApiDeviceInfo();
     void handleApiConfigGet();
     void handleApiConfigPost();
+    void handleApiRuntimeGet();
 
-    String buildPage(const DeviceConfig& cfg) const;
-    String buildDeviceInfoJson(const DeviceConfig& cfg) const;
-    String buildConfigJson(const DeviceConfig& cfg) const;
-    void applyConfigFromJson(DeviceConfig& cfg, const String& body) const;
+    void handleFirmwarePage();
+    void handleFirmwareUpload();
+
+    String buildPage(const DeviceConfig& cfg);
+    String buildDeviceInfoJson(const DeviceConfig& cfg);
+    String buildConfigJson(const DeviceConfig& cfg);
+
+    void applyConfigFromJson(DeviceConfig& cfg, const String& body, bool allowSecurity) const;
+
     static String jsonEscape(const String& value);
     static bool parseBoolField(const String& body, const String& key, bool fallback);
     static uint16_t parseUInt16Field(const String& body, const String& key, uint16_t fallback);

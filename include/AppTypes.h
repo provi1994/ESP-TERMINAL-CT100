@@ -46,8 +46,10 @@ struct ScaleTcpSettings {
 };
 
 struct SecuritySettings {
-    String webUser = "admin";
-    String webPassword = "admin";
+    String adminUser = "admin";
+    String adminPassword = "admin";
+    String serviceUser = "service";
+    String servicePassword = "service";
     String otaPassword = "admin123";
 };
 

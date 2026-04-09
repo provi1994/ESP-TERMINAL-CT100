@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CT-100 Panel terminala</title>
+  <style>
+    :root {
+      --dark-blue: #00263E;
+      --medium-blue: #0077C0;
+      --light-blue: #50BCEB;
+      --green: #76C043;
+      --orange: #F18A00;
+      --dark-gray: #4B4D4F;
+      --page: #E9ECEF;
+      --card: #F8FAFC;
+      --text: #0F172A;
+      --muted: #64748B;
+      --white: #FFFFFF;
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      --shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      background: var(--page);
+      color: var(--text);
+      padding: 16px;
+    }
+    button, input, select { font: inherit; }
+    .app {
+      max-width: 1480px;
+      min-height: calc(100vh - 32px);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      background: var(--white);
+      border: 1px solid #CBD5E1;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .sidebar {
+      background: var(--dark-blue);
+      color: var(--white);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .brand-card, .quick-card {
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      border-radius: 28px;
+      padding: 18px;
+    }
+    .brand-top { display:flex; gap:14px; align-items:center; margin-bottom:14px; }
+    .brand-logo {
+      width: 58px; height: 58px; border-radius: 18px; background: var(--medium-blue);
+      display:flex; align-items:center; justify-content:center; overflow:hidden;
+    }
+    .brand-logo img { max-width:84%; max-height:84%; display:block; object-fit:contain; filter:brightness(0) invert(1); }
+    .brand-overline, .section-overline {
+      font-size:11px; text-transform:uppercase; letter-spacing:0.28em; font-weight:700;
+    }
+    .brand-overline { color:#BEE3F8; }
+    .brand-title { margin-top:4px; font-size:22px; font-weight:700; }
+    .brand-copy {
+      background: rgba(0,0,0,0.12); border:1px solid rgba(255,255,255,0.08); border-radius:20px;
+      padding:12px 14px; font-size:14px; color:#E2E8F0; line-height:1.45;
+    }
+    .nav { display:flex; flex-direction:column; gap:8px; }
+    .nav-item {
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:14px 16px; border-radius:18px; color:#E2E8F0; text-decoration:none;
+      font-size:14px; font-weight:600; transition:background .2s ease,color .2s ease;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.08); }
+    .nav-item.active { background: var(--white); color: var(--text); box-shadow: var(--shadow-soft); }
+    .tag {
+      display:inline-flex; align-items:center; justify-content:center; padding:4px 8px; border-radius:999px;
+      font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; white-space:nowrap;
+    }
+    .tag.plan { background: rgba(241,138,0,0.18); color:#FED7AA; }
+    .tag.ok { background: rgba(118,192,67,0.16); color:var(--dark-blue); border:1px solid rgba(118,192,67,.35); }
+    .tag.info { background: rgba(80,188,235,0.16); color:var(--dark-blue); border:1px solid rgba(80,188,235,.35); }
+    .tag.warn { background: rgba(241,138,0,0.16); color:var(--dark-blue); border:1px solid rgba(241,138,0,.35); }
+    .tag.solid { color: var(--white); border:0; }
+    .quick-card h3 { margin:0 0 14px; color:#BEE3F8; font-size:11px; text-transform:uppercase; letter-spacing:.25em; }
+    .quick-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .btn {
+      border:0; border-radius:18px; padding:11px 14px; font-weight:700; cursor:pointer; min-height:44px;
+    }
+    .btn.white { background:var(--white); color:var(--text); }
+    .btn.blue { background:var(--medium-blue); color:var(--white); }
+    .btn.gray { background:var(--dark-gray); color:var(--white); }
+    .btn.orange { background:var(--orange); color:var(--white); }
+    .btn.green { background:var(--green); color:var(--white); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .content { min-width:0; display:flex; flex-direction:column; background:linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%); }
+    .topbar {
+      display:flex; justify-content:space-between; gap:20px; align-items:center; padding:22px 28px;
+      border-bottom:1px solid #E2E8F0; background:rgba(255,255,255,.86); backdrop-filter:blur(8px);
+    }
+    .topbar h1 { margin:6px 0 0; font-size:34px; line-height:1.1; letter-spacing:-.03em; }
+    .top-pills { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; min-width:520px; }
+    .pill { background:var(--white); border:1px solid #E2E8F0; border-radius:18px; padding:12px 14px; box-shadow: var(--shadow-soft); }
+    .pill-label { font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
+    .pill-value { margin-top:5px; font-size:14px; font-weight:700; }
+    .main { padding:26px 28px 30px; display:flex; flex-direction:column; gap:24px; }
+    .grid-three { display:grid; grid-template-columns:minmax(0,2fr) minmax(340px,1fr); gap:16px; }
+    .status-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .card {
+      background: var(--white); border:1px solid #E2E8F0; border-radius:30px; padding:20px;
+      box-shadow: var(--shadow-soft); min-width:0;
+    }
+    .card.soft { background:var(--card); }
+    .card-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; }
+    .card-title { margin:0; font-size:20px; font-weight:700; }
+    .card-subtitle { margin-top:5px; font-size:14px; color:var(--muted); line-height:1.45; }
+    .status-card .name { color:var(--muted); font-size:14px; font-weight:600; margin-bottom:10px; }
+    .status-card .value { font-size:22px; font-weight:800; line-height:1.15; margin-bottom:6px; }
+    .status-card .sub { font-size:14px; color:var(--muted); line-height:1.4; }
+    .lcd-frame {
+      border-radius:24px; border:10px solid #0F172A; background:#DCE9D8; padding:14px;
+      box-shadow: inset 0 8px 20px rgba(15,23,42,.12); margin-bottom:16px;
+    }
+    .lcd-screen {
+      border-radius:16px; border:1px solid rgba(51,65,85,.35); background:#D4E2D0;
+      padding:12px; font-family:"Courier New", monospace; color:#0F172A; min-height:156px;
+    }
+    .lcd-row-top { display:flex; justify-content:space-between; gap:8px; padding-bottom:8px; border-bottom:1px solid rgba(71,85,105,.30); font-size:13px; font-weight:700; }
+    .lcd-weight { text-align:center; font-size:32px; font-weight:800; padding-top:18px; letter-spacing:.03em; }
+    .lcd-msg { text-align:center; font-size:13px; padding-top:20px; }
+    .mini-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .mini-stat { border:1px solid #E2E8F0; border-radius:16px; background:var(--white); padding:10px 12px; }
+    .mini-stat .label { font-size:11px; text-transform:uppercase; letter-spacing:.15em; color:var(--muted); }
+    .mini-stat .value { margin-top:5px; font-size:14px; font-weight:700; }
+    .two-col { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr); gap:24px; }
+    .flow-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .flow-box { border:1px solid #E2E8F0; border-radius:24px; padding:16px; background:linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%); }
+    .flow-badge { display:inline-flex; align-items:center; justify-content:center; padding:7px 12px; border-radius:999px; color:var(--white); font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; margin-bottom:12px; }
+    .flow-item { background:#F8FAFC; border-radius:16px; padding:10px 12px; font-size:14px; color:#334155; margin-top:8px; border:1px solid #EEF2F7; }
+    .table-wrap { border:1px solid #E2E8F0; border-radius:24px; overflow:hidden; background:var(--white); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    thead { background:#F8FAFC; color:#475569; }
+    th,td { text-align:left; padding:14px 16px; border-bottom:1px solid #EEF2F7; vertical-align:top; }
+    tbody tr:last-child td { border-bottom:0; }
+    .mono { font-family:"Courier New", monospace; color:#64748B; }
+    .stack { display:flex; flex-direction:column; gap:24px; }
+    .tcp-row { border:1px solid #EEF2F7; background:#F8FAFC; border-radius:18px; padding:14px; margin-top:10px; }
+    .tcp-top { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+    .tcp-name { font-weight:700; }
+    .tcp-detail { margin-top:6px; color:var(--muted); font-size:14px; line-height:1.45; }
+    .line-list { margin-top:4px; }
+    .line-item { display:flex; justify-content:space-between; gap:14px; padding:12px 0; border-bottom:1px solid #F1F5F9; font-size:14px; }
+    .line-item:last-child { border-bottom:0; }
+    .line-label { color:var(--muted); font-weight:600; }
+    .line-value { font-weight:700; text-align:right; }
+    .action-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+    .third-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+    .mobile-bar { display:none; padding:14px 16px 0; }
+    .mobile-toggle { width:100%; border:0; border-radius:18px; padding:13px 16px; background:var(--dark-blue); color:var(--white); font-weight:700; text-align:left; }
+    .toast {
+      position:fixed; right:18px; bottom:18px; background:var(--dark-blue); color:var(--white);
+      padding:12px 14px; border-radius:16px; box-shadow:var(--shadow); display:none; z-index:20;
+    }
+    .loading::after { content:' · odświeżanie'; color:var(--muted); font-size:12px; font-weight:600; }
+    @media (max-width:1240px) {
+      .status-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .flow-grid,.third-grid { grid-template-columns:1fr; }
+      .top-pills { min-width:0; grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .grid-three,.two-col { grid-template-columns:1fr; }
+    }
+    @media (max-width:980px) {
+      body { padding:10px; }
+      .app { grid-template-columns:1fr; min-height:auto; }
+      .sidebar { display:none; }
+      .app.nav-open .sidebar { display:flex; }
+      .mobile-bar { display:block; }
+      .topbar { flex-direction:column; align-items:flex-start; padding:18px 18px 20px; }
+      .main { padding:18px; }
+      .status-grid,.top-pills,.mini-grid { grid-template-columns:1fr; }
+      .topbar h1 { font-size:28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-bar">
+    <button class="mobile-toggle" id="mobileToggle">☰ Menu panelu CT-100</button>
+  </div>
+
+  <div class="app" id="appRoot">
+    <aside class="sidebar" id="sidebar">
+      <section class="brand-card">
+        <div class="brand-top">
+          <div class="brand-logo"><img src="/logo.svg" alt="Logo" /></div>
+          <div>
+            <div class="brand-overline">Tamtron</div>
+            <div class="brand-title">Panel terminala</div>
+          </div>
+        </div>
+        <div class="brand-copy">Terminal kierowcy do wagi samochodowej. Priorytet: czytelność, diagnostyka i szybki serwis.</div>
+      </section>
+
+      <nav class="nav">
+        <a class="nav-item active" href="#dashboard"><span>Dashboard</span></a>
+        <a class="nav-item" href="#terminal"><span>Terminal</span></a>
+        <a class="nav-item" href="#network"><span>Sieć</span></a>
+        <a class="nav-item" href="#tcp"><span>Komunikacja TCP</span></a>
+        <a class="nav-item" href="#rfid"><span>RFID</span></a>
+        <a class="nav-item" href="#lcd"><span>LCD / Ekran</span></a>
+        <a class="nav-item" href="#logs"><span>Logi i diagnostyka</span></a>
+        <a class="nav-item" href="#system"><span>System</span></a>
+      </nav>
+
+      <section class="quick-card">
+        <h3>Szybkie akcje</h3>
+        <div class="quick-actions">
+          <button class="btn white" id="refreshBtn">Odśwież</button>
+          <button class="btn blue" id="saveBtn">Zapisz</button>
+          <button class="btn gray" id="statusBtn">Status TXT</button>
+          <button class="btn orange" id="restartBtn">Restart</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <div>
+          <div class="section-overline" style="color: var(--muted);">Dashboard / Stan bieżący</div>
+          <h1>CT-100 · widok operatorski</h1>
+        </div>
+        <div class="top-pills">
+          <div class="pill"><div class="pill-label">Urządzenie</div><div class="pill-value" id="deviceName">-</div></div>
+          <div class="pill"><div class="pill-label">IP</div><div class="pill-value" id="deviceIp">-</div></div>
+          <div class="pill"><div class="pill-label">Firmware</div><div class="pill-value" id="deviceFw">-</div></div>
+          <div class="pill"><div class="pill-label">WWW</div><div class="pill-value">Basic Auth</div></div>
+        </div>
+      </header>
+
+      <main class="main" id="mainRoot">
+        <section class="grid-three" id="dashboard">
+          <div class="status-grid" id="statusGrid"></div>
+          <section class="card soft" id="lcdCard">
+            <div class="card-header">
+              <div>
+                <div class="section-overline" style="color: var(--muted);">Podgląd LCD</div>
+                <h2 class="card-title">ST7920 · 128x64</h2>
+              </div>
+              <span class="tag solid" style="background: var(--medium-blue);">live</span>
+            </div>
+            <div class="lcd-frame">
+              <div class="lcd-screen">
+                <div class="lcd-row-top">
+                  <span id="lcdHeader">TAMTRON CT100</span>
+                  <span id="lcdNet">ETH OK</span>
+                </div>
+                <div class="lcd-weight" id="lcdWeight">---</div>
+                <div class="lcd-msg" id="lcdMessage">Zbliż kartę RFID</div>
+              </div>
+            </div>
+            <div class="mini-grid">
+              <div class="mini-stat"><div class="label">Nagłówek</div><div class="value" id="lcdHeaderStat">-</div></div>
+              <div class="mini-stat"><div class="label">Tryb</div><div class="value" id="lcdMode">status</div></div>
+              <div class="mini-stat"><div class="label">Priorytet</div><div class="value" id="lcdPriority">tekst TCP</div></div>
+              <div class="mini-stat"><div class="label">Timeout</div><div class="value" id="lcdTimeout">5 s</div></div>
+            </div>
+          </section>
+        </section>
+
+        <section class="two-col" id="terminal">
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <div class="section-overline" style="color: var(--muted);">Aktualny stan terminala</div>
+                <h2 class="card-title">Priorytet danych i przepływ roboczy</h2>
+              </div>
+              <span class="tag solid" style="background: var(--green);" id="runtimeState">Gotowe do pracy</span>
+            </div>
+            <div class="flow-grid" id="flowGrid"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Czas</th><th>Źródło</th><th>Zdarzenie</th></tr>
+                </thead>
+                <tbody id="eventsTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="stack">
+            <section class="card" id="tcp">
+              <div><h2 class="card-title">Komunikacja TCP</h2><div class="card-subtitle">Kanał komend, waga i discovery według aktualnego runtime.</div></div>
+              <div id="tcpList"></div>
+            </section>
+            <section class="card" id="logs">
+              <div><h2 class="card-title">Szybka diagnostyka</h2><div class="card-subtitle">Dane z runtime oraz konfiguracji.</div></div>
+              <div class="line-list" id="diagList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="third-grid">
+          <section class="card" id="network">
+            <div><h2 class="card-title">Sieć</h2><div class="card-subtitle">Zmiany zapisują się przez REST API i wymagają restartu.</div></div>
+            <div class="line-list">
+              <div class="line-item"><div class="line-label">Nazwa urządzenia</div><div class="line-value"><input id="deviceNameInput" style="width:180px"></div></div>
+              <div class="line-item"><div class="line-label">Tryb</div><div class="line-value"><select id="networkModeInput"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div></div>
+              <div class="line-item"><div class="line-label">IP</div><div class="line-value"><input id="ipInput" style="width:180px"></div></div>
+              <div class="line-item"><div class="line-label">Brama</div><div class="line-value"><input id="gatewayInput" style="width:180px"></div></div>
+              <div class="line-item"><div class="line-label">Maska</div><div class="line-value"><input id="subnetInput" style="width:180px"></div></div>
+              <div class="line-item"><div class="line-label">DNS 1</div><div class="line-value"><input id="dns1Input" style="width:180px"></div></div>
+              <div class="line-item"><div class="line-label">DNS 2</div><div class="line-value"><input id="dns2Input" style="width:180px"></div></div>
+            </div>
+            <div class="action-row"><button class="btn blue" id="saveNetworkBtn">Zapisz konfigurację</button></div>
+          </section>
+
+          <section class="card" id="rfid">
+            <div><h2 class="card-title">RFID</h2><div class="card-subtitle">Konfiguracja i dane bieżące.</div></div>
+            <div class="line-list" id="rfidList"></div>
+            <div class="action-row"><button class="btn green" id="copyUidBtn">Kopiuj UID</button></div>
+          </section>
+
+          <section class="card" id="system">
+            <div><h2 class="card-title">System</h2><div class="card-subtitle">LCD, keypad i discovery.</div></div>
+            <div class="line-list" id="systemList"></div>
+            <div class="action-row">
+              <button class="btn orange" id="rebootBtn2">Restart</button>
+              <button class="btn gray" id="openLogsBtn">Otwórz logi</button>
+            </div>
+          </section>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const state = {
+      device: null,
+      config: null,
+      runtime: null,
+      flow: [
+        { title: '1. Wejście', color: 'var(--light-blue)', items: ['RFID UART', 'Keypad 4x4', 'TCP komendy', 'TCP waga'] },
+        { title: '2. Logika', color: 'var(--medium-blue)', items: ['Priorytet treści LCD', 'Formatowanie komunikatów', 'Wysyłka do serwera', 'Obsługa timeoutów'] },
+        { title: '3. Wyjście', color: 'var(--orange)', items: ['LCD ST7920', 'Status TXT', 'Logi serwisowe', 'Akcje operatora'] },
+      ]
+    };
+
+    function showToast(msg, ms = 2200) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.style.display = 'none', ms);
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(url + ' -> ' + res.status);
+      return res.json();
+    }
+
+    async function refreshAll() {
+      document.getElementById('mainRoot').classList.add('loading');
+      try {
+        const [device, config, runtime] = await Promise.all([
+          fetchJson('/api/device/info'),
+          fetchJson('/api/config'),
+          fetchJson('/api/runtime')
+        ]);
+        state.device = device;
+        state.config = config;
+        state.runtime = runtime;
+        renderAll();
+      } catch (err) {
+        console.error(err);
+        showToast('Błąd odświeżania danych');
+      } finally {
+        document.getElementById('mainRoot').classList.remove('loading');
+      }
+    }
+
+    function renderStatusCards() {
+      const runtime = state.runtime || {};
+      const config = state.config || {};
+      const grid = document.getElementById('statusGrid');
+      const cards = [
+        { label:'Sieć', value: runtime.networkState || 'ONLINE', sub: (state.device?.ip || '-') + ' · ' + ((config.network?.mode || 'dhcp').toUpperCase()), tone:'ok' },
+        { label:'TCP Komendy', value: runtime.commandTcpMode || ((config.tcp?.mode || 'client').toUpperCase()), sub: runtime.commandTcpLast || '-', tone:'info' },
+        { label:'TCP Waga', value: config.scaleTcp?.enabled ? ((runtime.scaleTcpMode || config.scaleTcp.mode || 'client').toUpperCase()) : 'OFF', sub: runtime.weight || '---', tone: config.scaleTcp?.enabled ? 'warn' : 'info' },
+        { label:'RFID', value: config.rfid?.enabled ? 'AKTYWNE' : 'OFF', sub: 'Ostatni UID: ' + (runtime.lastCard || '-'), tone:'ok' },
+        { label:'LCD', value: config.display?.enabled ? 'AKTYWNE' : 'OFF', sub: 'Nagłówek: ' + (runtime.header || '-'), tone:'info' },
+        { label:'Klawiatura', value: config.keypad?.enabled ? 'AKTYWNA' : 'OFF', sub: 'Ostatni klawisz: ' + (runtime.lastKey || '-'), tone:'ok' },
+      ];
+      grid.innerHTML = cards.map(card => `
+        <article class="card status-card">
+          <div class="card-header" style="margin-bottom:10px;">
+            <div class="name">${card.label}</div>
+            <span class="tag ${card.tone === 'ok' ? 'ok' : card.tone === 'info' ? 'info' : 'warn'}">${card.tone === 'ok' ? 'OK' : card.tone === 'info' ? 'INFO' : 'UWAGA'}</span>
+          </div>
+          <div class="value">${escapeHtml(card.value)}</div>
+          <div class="sub">${escapeHtml(card.sub)}</div>
+        </article>`).join('');
+    }
+
+    function renderFlow() {
+      const root = document.getElementById('flowGrid');
+      root.innerHTML = state.flow.map(col => `
+        <div class="flow-box">
+          <div class="flow-badge" style="background:${col.color}">${col.title}</div>
+          ${col.items.map(item => `<div class="flow-item">${item}</div>`).join('')}
+        </div>`).join('');
+    }
+
+    function renderEvents() {
+      const runtime = state.runtime || {};
+      const rows = [
+        ['live', 'RFID', runtime.lastCard ? ('UID ' + runtime.lastCard) : 'brak odczytu'],
+        ['live', 'KEY', runtime.lastKey || 'brak klawisza'],
+        ['live', 'TCP', runtime.commandTcpLast || 'brak wiadomości'],
+        ['live', 'WAGA', runtime.weight || '---'],
+        ['live', 'LCD', runtime.header || '-']
+      ];
+      document.getElementById('eventsTable').innerHTML = rows.map(row => `
+        <tr><td class="mono">${row[0]}</td><td><strong>${escapeHtml(row[1])}</strong></td><td>${escapeHtml(row[2])}</td></tr>`).join('');
+    }
+
+    function renderTcp() {
+      const runtime = state.runtime || {};
+      const config = state.config || {};
+      const rows = [
+        { name:'Kanał komend', status:(runtime.commandTcpMode || config.tcp?.mode || 'client').toUpperCase(), detail:'Ostatnia wiadomość: ' + (runtime.commandTcpLast || '-'), color:'var(--green)' },
+        { name:'Kanał wagi', status: config.scaleTcp?.enabled ? ((runtime.scaleTcpMode || config.scaleTcp.mode || 'client').toUpperCase()) : 'OFF', detail:'Aktualna waga: ' + (runtime.weight || '---'), color: config.scaleTcp?.enabled ? 'var(--orange)' : 'var(--dark-gray)' },
+        { name:'Discovery', status: config.discovery?.enabled ? 'ON' : 'OFF', detail:'UDP port: ' + (state.device?.discoveryPort ?? config.discovery?.udpPort ?? '-'), color: config.discovery?.enabled ? 'var(--medium-blue)' : 'var(--dark-gray)' },
+      ];
+      document.getElementById('tcpList').innerHTML = rows.map(item => `
+        <div class="tcp-row"><div class="tcp-top"><div class="tcp-name">${escapeHtml(item.name)}</div><span class="tag solid" style="background:${item.color}">${escapeHtml(item.status)}</span></div><div class="tcp-detail">${escapeHtml(item.detail)}</div></div>`).join('');
+    }
+
+    function renderLineList(id, rows) {
+      document.getElementById(id).innerHTML = rows.map(item => `
+        <div class="line-item"><div class="line-label">${escapeHtml(item[0])}</div><div class="line-value">${escapeHtml(String(item[1]))}</div></div>`).join('');
+    }
+
+    function renderMeta() {
+      document.getElementById('deviceName').textContent = state.device?.deviceName || '-';
+      document.getElementById('deviceIp').textContent = state.device?.ip || '-';
+      document.getElementById('deviceFw').textContent = state.device?.fw || '-';
+      document.getElementById('runtimeState').textContent = state.runtime?.bootPhase === 'DONE' ? 'Gotowe do pracy' : ('Start: ' + (state.runtime?.bootPhase || '...'));
+    }
+
+    function renderLcd() {
+      const runtime = state.runtime || {};
+      document.getElementById('lcdHeader').textContent = runtime.header || 'TAMTRON CT100';
+      document.getElementById('lcdNet').textContent = runtime.networkState || 'ETH OK';
+      document.getElementById('lcdWeight').textContent = runtime.weight || '---';
+      document.getElementById('lcdMessage').textContent = runtime.message || 'Zbliż kartę RFID';
+      document.getElementById('lcdHeaderStat').textContent = runtime.header || '-';
+      document.getElementById('lcdMode').textContent = runtime.bootPhase === 'DONE' ? 'status' : 'boot';
+      document.getElementById('lcdPriority').textContent = runtime.lcdCustomActive ? 'tekst TCP' : 'status';
+      document.getElementById('lcdTimeout').textContent = '5 s';
+    }
+
+    function renderForms() {
+      const n = state.config?.network || {};
+      setVal('deviceNameInput', n.deviceName || 'ct100-terminal');
+      setVal('networkModeInput', n.mode || 'dhcp');
+      setVal('ipInput', n.ip || '192.168.1.112');
+      setVal('gatewayInput', n.gateway || '192.168.1.1');
+      setVal('subnetInput', n.subnet || '255.255.255.0');
+      setVal('dns1Input', n.dns1 || '8.8.8.8');
+      setVal('dns2Input', n.dns2 || '1.1.1.1');
+
+      renderLineList('rfidList', [
+        ['Moduł', state.config?.rfid?.enabled ? 'włączony' : 'wyłączony'],
+        ['Format', state.config?.rfid?.encoding || '-'],
+        ['Baud', state.config?.rfid?.baudRate || '-'],
+        ['Ostatni UID', state.runtime?.lastCard || '-']
+      ]);
+
+      renderLineList('systemList', [
+        ['LCD', state.config?.display?.enabled ? ('ON · kontrast ' + state.config.display.contrast) : 'OFF'],
+        ['Keypad', state.config?.keypad?.enabled ? ('ON · PCF ' + state.config.keypad.pcf8574Address) : 'OFF'],
+        ['Discovery', state.config?.discovery?.enabled ? ('ON · UDP ' + state.config.discovery.udpPort) : 'OFF'],
+        ['Scale TCP', state.config?.scaleTcp?.enabled ? ('ON · ' + state.config.scaleTcp.serverIp + ':' + state.config.scaleTcp.serverPort) : 'OFF']
+      ]);
+
+      renderLineList('diagList', [
+        ['Ostatni RFID', state.runtime?.lastCard || '-'],
+        ['Ostatni klawisz', state.runtime?.lastKey || '-'],
+        ['Ostatnia waga', state.runtime?.weight || '---'],
+        ['Nagłówek', state.runtime?.header || '-']
+      ]);
+    }
+
+    function renderAll() {
+      renderMeta();
+      renderStatusCards();
+      renderLcd();
+      renderFlow();
+      renderEvents();
+      renderTcp();
+      renderForms();
+    }
+
+    function setVal(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function gatherConfig() {
+      const config = JSON.parse(JSON.stringify(state.config || {}));
+      config.network = config.network || {};
+      config.network.deviceName = document.getElementById('deviceNameInput').value.trim();
+      config.network.mode = document.getElementById('networkModeInput').value;
+      config.network.ip = document.getElementById('ipInput').value.trim();
+      config.network.gateway = document.getElementById('gatewayInput').value.trim();
+      config.network.subnet = document.getElementById('subnetInput').value.trim();
+      config.network.dns1 = document.getElementById('dns1Input').value.trim();
+      config.network.dns2 = document.getElementById('dns2Input').value.trim();
+      return config;
+    }
+
+    async function saveConfig() {
+      try {
+        const payload = gatherConfig();
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('save failed');
+        showToast('Konfiguracja zapisana. Zrób restart urządzenia.');
+        await refreshAll();
+      } catch (err) {
+        console.error(err);
+        showToast('Błąd zapisu konfiguracji');
+      }
+    }
+
+    async function rebootDevice() {
+      if (!confirm('Uruchomić urządzenie ponownie?')) return;
+      try {
+        const res = await fetch('/reboot', { method: 'POST' });
+        if (!res.ok) throw new Error('reboot failed');
+        showToast('Wysłano restart');
+      } catch (err) {
+        console.error(err);
+        showToast('Błąd restartu');
+      }
+    }
+
+    async function copyLastUid() {
+      try {
+        await navigator.clipboard.writeText(state.runtime?.lastCard || '');
+        showToast('UID skopiowany');
+      } catch (_) {
+        showToast('Nie udało się skopiować UID');
+      }
+    }
+
+    function openStatus() { window.open('/status', '_blank'); }
+    function openLogs() { window.open('/logs', '_blank'); }
+
+    function wireActions() {
+      document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+      document.getElementById('saveBtn').addEventListener('click', saveConfig);
+      document.getElementById('saveNetworkBtn').addEventListener('click', saveConfig);
+      document.getElementById('statusBtn').addEventListener('click', openStatus);
+      document.getElementById('restartBtn').addEventListener('click', rebootDevice);
+      document.getElementById('rebootBtn2').addEventListener('click', rebootDevice);
+      document.getElementById('copyUidBtn').addEventListener('click', copyLastUid);
+      document.getElementById('openLogsBtn').addEventListener('click', openLogs);
+      document.getElementById('mobileToggle').addEventListener('click', () => document.getElementById('appRoot').classList.toggle('nav-open'));
+    }
+
+    wireActions();
+    refreshAll();
+    setInterval(refreshAll, 3000);
+  </script>
+</body>
+</html>

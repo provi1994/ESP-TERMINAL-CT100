@@ -24,8 +24,10 @@ DeviceConfig ConfigManager::load() {
     config_.scaleTcp.serverPort = prefs_.getUShort("sc_sport", config_.scaleTcp.serverPort);
     config_.scaleTcp.listenPort = prefs_.getUShort("sc_lport", config_.scaleTcp.listenPort);
 
-    config_.security.webUser = prefs_.getString("web_user", config_.security.webUser);
-    config_.security.webPassword = prefs_.getString("web_pass", config_.security.webPassword);
+    config_.security.adminUser = prefs_.getString("adm_user", prefs_.getString("web_user", config_.security.adminUser));
+    config_.security.adminPassword = prefs_.getString("adm_pass", prefs_.getString("web_pass", config_.security.adminPassword));
+    config_.security.serviceUser = prefs_.getString("svc_user", config_.security.serviceUser);
+    config_.security.servicePassword = prefs_.getString("svc_pass", config_.security.servicePassword);
     config_.security.otaPassword = prefs_.getString("ota_pass", config_.security.otaPassword);
 
     config_.rfid.encoding = static_cast<RfidEncoding>(prefs_.getUChar("rfid_enc", static_cast<uint8_t>(config_.rfid.encoding)));
@@ -66,9 +68,13 @@ bool ConfigManager::save(const DeviceConfig& config) {
     prefs_.putUShort("sc_sport", config.scaleTcp.serverPort);
     prefs_.putUShort("sc_lport", config.scaleTcp.listenPort);
 
-    prefs_.putString("web_user", config.security.webUser);
-    prefs_.putString("web_pass", config.security.webPassword);
+    prefs_.putString("adm_user", config.security.adminUser);
+    prefs_.putString("adm_pass", config.security.adminPassword);
+    prefs_.putString("svc_user", config.security.serviceUser);
+    prefs_.putString("svc_pass", config.security.servicePassword);
     prefs_.putString("ota_pass", config.security.otaPassword);
+    prefs_.putString("web_user", config.security.adminUser);
+    prefs_.putString("web_pass", config.security.adminPassword);
 
     prefs_.putUChar("rfid_enc", static_cast<uint8_t>(config.rfid.encoding));
     prefs_.putULong("rfid_baud", config.rfid.baudRate);
