@@ -143,11 +143,25 @@ static void applyRuntimeConfig() {
     keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
     tcpManager.begin(cfg.tcp);
     if (cfg.scaleTcp.enabled) {
-        TcpSettings s; s.mode = cfg.scaleTcp.mode; s.serverIp = cfg.scaleTcp.serverIp; s.serverPort = cfg.scaleTcp.serverPort; s.listenPort = cfg.scaleTcp.listenPort; scaleTcpManager.begin(s);
+        TcpSettings s;
+        s.mode = cfg.scaleTcp.mode;
+        s.serverIp = cfg.scaleTcp.serverIp;
+        s.serverPort = cfg.scaleTcp.serverPort;
+        s.listenPort = cfg.scaleTcp.listenPort;
+        scaleTcpManager.begin(s);
     }
     webServer.begin(cfg);
     if (cfg.discovery.enabled) {
-        DiscoveryInfo info; info.deviceId = String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX); info.deviceName = cfg.network.deviceName; info.fwVersion = "0.1.0"; info.tcpPort = cfg.tcp.listenPort; info.httpPort = 80; info.configApiEnabled = true; info.rfidEnabled = cfg.rfid.enabled; info.keypadEnabled = cfg.keypad.enabled; discoveryService.begin(info, cfg.discovery.udpPort);
+        DiscoveryInfo info;
+        info.deviceId = String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX);
+        info.deviceName = cfg.network.deviceName;
+        info.fwVersion = "0.1.0";
+        info.tcpPort = cfg.tcp.listenPort;
+        info.httpPort = 80;
+        info.configApiEnabled = true;
+        info.rfidEnabled = cfg.rfid.enabled;
+        info.keypadEnabled = cfg.keypad.enabled;
+        discoveryService.begin(info, cfg.discovery.udpPort);
     }
 }
 
@@ -166,15 +180,28 @@ void setup() {
     tcpManager.onLineReceived([](const String& line) {
         lastInboundFrame = line;
         if (line.startsWith("LCD:")) {
-            lcdCustomText = line.substring(4); lcdCustomText.trim(); lcdCustomUntil = millis() + 5000UL; if (cfg.display.enabled) display.showTcp(lcdCustomText); return;
+            lcdCustomText = line.substring(4);
+            lcdCustomText.trim();
+            lcdCustomUntil = millis() + 5000UL;
+            if (cfg.display.enabled) display.showTcp(lcdCustomText);
+            return;
         }
         if (line.startsWith("STATUS:")) {
-            remoteStatusText = line.substring(7); remoteStatusText.trim(); if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie"; remoteStatusUntil = millis() + 5000UL; return;
+            remoteStatusText = line.substring(7);
+            remoteStatusText.trim();
+            if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie";
+            remoteStatusUntil = millis() + 5000UL;
+            return;
         }
     });
 
     scaleTcpManager.onLineReceived([](const String& line) {
-        String weight = line; weight.trim(); if (weight.isEmpty()) return; currentWeight = weight; lastInboundFrame = "SCALE:" + weight; logger.info("Scale ASCII: " + currentWeight);
+        String weight = line;
+        weight.trim();
+        if (weight.isEmpty()) return;
+        currentWeight = weight;
+        lastInboundFrame = "SCALE:" + weight;
+        logger.info("Scale ASCII: " + currentWeight);
     });
 
     rfid.onCard([](const String& raw, const String& encoded) {
@@ -182,17 +209,24 @@ void setup() {
         if (cfg.display.enabled) display.showCard(encoded);
         if (cfg.rfid.encoding == RfidEncoding::SCALE_FRAME_MODE) {
             const String frame = RfidFrameEncoder::encode(raw, RfidFrameEncoder::Mode::CT100_FRAME);
-            if (frame.isEmpty()) { logger.warn("RFID CT100 frame build failed"); return; }
-            lastOutboundFrame = frame; tcpManager.sendLine(frame); return;
+            if (frame.isEmpty()) {
+                logger.warn("RFID CT100 frame build failed");
+                return;
+            }
+            lastOutboundFrame = frame;
+            tcpManager.sendLine(frame);
+            return;
         }
         const String payload = "RFID:" + encoded + ";RAW:" + raw;
-        lastOutboundFrame = payload; tcpManager.sendLine(payload);
+        lastOutboundFrame = payload;
+        tcpManager.sendLine(payload);
     });
 
     keypad.onKey([](char key) {
         lastKey = String(key);
         const String payload = "KEY:" + String(key);
-        lastOutboundFrame = payload; tcpManager.sendLine(payload);
+        lastOutboundFrame = payload;
+        tcpManager.sendLine(payload);
     });
 
     webServer.setConfigProvider([]() { return cfg; });
@@ -220,7 +254,11 @@ void setup() {
         out += "}";
         return out;
     });
-    webServer.onSave([](DeviceConfig newCfg) { configManager.save(newCfg); cfg = newCfg; logger.warn("Config persisted. Restart required."); });
+    webServer.onSave([](DeviceConfig newCfg) {
+        configManager.save(newCfg);
+        cfg = newCfg;
+        logger.warn("Config persisted. Restart required.");
+    });
     webServer.onReboot([]() { ESP.restart(); });
 }
 
