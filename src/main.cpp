@@ -12,6 +12,7 @@
 #include "Pins.h"
 #include "Rfid125kHzUart.h"
 #include "RfidFrameEncoder.h"
+#include "ShiftRegister74HC595.h"
 #include "TcpManager.h"
 #include "WebConfigServer.h"
 
@@ -25,6 +26,7 @@ TcpManager tcpManager(logger);
 TcpManager scaleTcpManager(logger);
 WebConfigServer webServer(logger);
 DiscoveryService discoveryService;
+ShiftRegister74HC595 outputs595(Pins::SHIFT595_DATA, Pins::SHIFT595_CLOCK, Pins::SHIFT595_LATCH);
 
 DeviceConfig cfg;
 unsigned long lastStatusRefresh = 0;
@@ -37,6 +39,12 @@ unsigned long lcdCustomUntil = 0;
 String remoteStatusText = "Oczekuje na wazenie";
 unsigned long remoteStatusUntil = 0;
 String currentWeight = "---";
+String qrLastData;
+
+bool out1State = false;
+bool out2State = false;
+bool buzzerState = false;
+unsigned long buzzerOffAt = 0;
 
 enum class BootScreenPhase : uint8_t { LOGO = 0, MODULES = 1, TCP = 2, DONE = 3 };
 unsigned long bootSequenceStart = 0;
@@ -46,6 +54,8 @@ String rfidStatus = "OFF";
 
 static String jsonEscapeLocal(const String& value) {
     String out;
+    out.reserve(value.length() + 8);
+
     for (size_t i = 0; i < value.length(); ++i) {
         const char c = value[i];
         switch (c) {
@@ -54,10 +64,32 @@ static String jsonEscapeLocal(const String& value) {
             case '\n': out += "\\n"; break;
             case '\r': out += "\\r"; break;
             case '\t': out += "\\t"; break;
-            default: out += c; break;
+            default:
+                if ((uint8_t)c >= 32) out += c;
+                break;
         }
     }
     return out;
+}
+
+static void setOut1(bool state) {
+    out1State = state;
+    outputs595.setBit(Pins::OUT1_BIT, state);
+}
+
+static void setOut2(bool state) {
+    out2State = state;
+    outputs595.setBit(Pins::OUT2_BIT, state);
+}
+
+static void setBuzzer(bool state) {
+    buzzerState = state;
+    outputs595.setBit(Pins::BUZZER_BIT, state);
+}
+
+static void beepBuzzer(unsigned long durationMs) {
+    setBuzzer(true);
+    buzzerOffAt = millis() + durationMs;
 }
 
 static String activeHeaderText() {
@@ -70,6 +102,7 @@ static String buildStatusText() {
     out += "device=" + cfg.network.deviceName + "\n";
     out += "ip=" + netManager.localIP().toString() + "\n";
     out += "rfid_last=" + lastCard + "\n";
+    out += "qr_last=" + qrLastData + "\n";
     out += "key_last=" + lastKey + "\n";
     out += "last_outbound=" + lastOutboundFrame + "\n";
     out += "last_inbound=" + lastInboundFrame + "\n";
@@ -77,6 +110,9 @@ static String buildStatusText() {
     out += "cmd_tcp_last=" + tcpManager.lastMessage() + "\n";
     out += "scale_enabled=" + String(cfg.scaleTcp.enabled ? "on" : "off") + "\n";
     out += "scale_tcp_mode=" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\n";
+    out += "out1=" + String(out1State ? "on" : "off") + "\n";
+    out += "out2=" + String(out2State ? "on" : "off") + "\n";
+    out += "buzzer=" + String(buzzerState ? "on" : "off") + "\n";
     return out;
 }
 
@@ -97,26 +133,43 @@ static String ipText() {
 
 static void renderBootSequence() {
     if (!cfg.display.enabled) return;
+
     const unsigned long elapsed = millis() - bootSequenceStart;
+
     if (elapsed < 3000UL) {
         bootPhase = BootScreenPhase::LOGO;
         display.showLogo();
         return;
     }
+
     if (elapsed < 6500UL) {
         bootPhase = BootScreenPhase::MODULES;
-        display.showInfo("START / MODULY", "RFID: " + rfidStatus, cfg.keypad.enabled ? ("KEYPAD: " + String(keypadDetected ? "OK" : "BRAK")) : "KEYPAD: OFF", "IP: " + ipText(), "NET: " + String(cfg.network.mode == NetworkMode::DHCP ? "DHCP" : "STATIC"));
+        display.showInfo(
+            "START / MODULY",
+            "RFID: " + rfidStatus,
+            cfg.keypad.enabled ? ("KEYPAD: " + String(keypadDetected ? "OK" : "BRAK")) : "KEYPAD: OFF",
+            "IP: " + ipText(),
+            "NET: " + String(cfg.network.mode == NetworkMode::DHCP ? "DHCP" : "STATIC"));
         return;
     }
+
     if (elapsed < 10000UL) {
         bootPhase = BootScreenPhase::TCP;
         String cmdLine1 = "CMD: " + tcpModeLabel(cfg.tcp.mode);
-        String cmdLine2 = (cfg.tcp.mode == TcpMode::CLIENT) ? ("-> " + cfg.tcp.serverIp + ":" + String(cfg.tcp.serverPort)) : ("LISTEN:" + String(cfg.tcp.listenPort));
+        String cmdLine2 = (cfg.tcp.mode == TcpMode::CLIENT)
+                              ? ("-> " + cfg.tcp.serverIp + ":" + String(cfg.tcp.serverPort))
+                              : ("LISTEN:" + String(cfg.tcp.listenPort));
         String scaleLine1 = "WAGA: " + String(cfg.scaleTcp.enabled ? tcpModeLabel(cfg.scaleTcp.mode) : "OFF");
-        String scaleLine2 = !cfg.scaleTcp.enabled ? "-" : ((cfg.scaleTcp.mode == TcpMode::CLIENT) ? ("-> " + cfg.scaleTcp.serverIp + ":" + String(cfg.scaleTcp.serverPort)) : ("LISTEN:" + String(cfg.scaleTcp.listenPort)));
+        String scaleLine2 = !cfg.scaleTcp.enabled
+                                ? "-"
+                                : ((cfg.scaleTcp.mode == TcpMode::CLIENT)
+                                       ? ("-> " + cfg.scaleTcp.serverIp + ":" + String(cfg.scaleTcp.serverPort))
+                                       : ("LISTEN:" + String(cfg.scaleTcp.listenPort)));
+
         display.showInfo("START / TCP", cmdLine1, cmdLine2, scaleLine1, scaleLine2);
         return;
     }
+
     bootPhase = BootScreenPhase::DONE;
 }
 
@@ -125,6 +178,11 @@ static void applyRuntimeConfig() {
     ArduinoOTA.setPassword(cfg.security.otaPassword.c_str());
     ArduinoOTA.setPort(3232);
     ArduinoOTA.begin();
+
+    outputs595.begin();
+    setOut1(false);
+    setOut2(false);
+    setBuzzer(false);
 
     if (cfg.display.enabled) {
         display.begin(cfg.display.contrast);
@@ -140,8 +198,14 @@ static void applyRuntimeConfig() {
         rfidStatus = "OFF";
     }
 
-    keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
+    Serial1.begin(9600, SERIAL_8N1, Pins::QR_RX, -1);
+
+    keypadDetected = cfg.keypad.enabled
+                         ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL)
+                         : false;
+
     tcpManager.begin(cfg.tcp);
+
     if (cfg.scaleTcp.enabled) {
         TcpSettings s;
         s.mode = cfg.scaleTcp.mode;
@@ -150,7 +214,9 @@ static void applyRuntimeConfig() {
         s.listenPort = cfg.scaleTcp.listenPort;
         scaleTcpManager.begin(s);
     }
+
     webServer.begin(cfg);
+
     if (cfg.discovery.enabled) {
         DiscoveryInfo info;
         info.deviceId = String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX);
@@ -169,16 +235,21 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     logger.info("Booting CT-100");
+
     configManager.begin();
     cfg = configManager.load();
+
     netManager.begin(cfg.network);
+
     ArduinoOTA.onStart([]() { logger.warn("OTA start"); });
     ArduinoOTA.onEnd([]() { logger.warn("OTA end"); });
     ArduinoOTA.onError([](ota_error_t error) { logger.error("OTA error=" + String((int)error)); });
+
     applyRuntimeConfig();
 
     tcpManager.onLineReceived([](const String& line) {
         lastInboundFrame = line;
+
         if (line.startsWith("LCD:")) {
             lcdCustomText = line.substring(4);
             lcdCustomText.trim();
@@ -186,11 +257,47 @@ void setup() {
             if (cfg.display.enabled) display.showTcp(lcdCustomText);
             return;
         }
+
         if (line.startsWith("STATUS:")) {
             remoteStatusText = line.substring(7);
             remoteStatusText.trim();
             if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie";
             remoteStatusUntil = millis() + 5000UL;
+            return;
+        }
+
+        if (line.equalsIgnoreCase("OUT1:ON")) {
+            setOut1(true);
+            logger.info("OUT1=ON");
+            return;
+        }
+
+        if (line.equalsIgnoreCase("OUT1:OFF")) {
+            setOut1(false);
+            logger.info("OUT1=OFF");
+            return;
+        }
+
+        if (line.equalsIgnoreCase("OUT2:ON")) {
+            setOut2(true);
+            logger.info("OUT2=ON");
+            return;
+        }
+
+        if (line.equalsIgnoreCase("OUT2:OFF")) {
+            setOut2(false);
+            logger.info("OUT2=OFF");
+            return;
+        }
+
+        if (line.startsWith("BUZZER:")) {
+            String msText = line.substring(7);
+            msText.trim();
+            unsigned long duration = (unsigned long)msText.toInt();
+            if (duration == 0) duration = 120;
+            if (duration > 5000UL) duration = 5000UL;
+            beepBuzzer(duration);
+            logger.info("BUZZER=" + String(duration) + "ms");
             return;
         }
     });
@@ -199,6 +306,7 @@ void setup() {
         String weight = line;
         weight.trim();
         if (weight.isEmpty()) return;
+
         currentWeight = weight;
         lastInboundFrame = "SCALE:" + weight;
         logger.info("Scale ASCII: " + currentWeight);
@@ -206,17 +314,22 @@ void setup() {
 
     rfid.onCard([](const String& raw, const String& encoded) {
         lastCard = encoded;
+        beepBuzzer(80);
+
         if (cfg.display.enabled) display.showCard(encoded);
+
         if (cfg.rfid.encoding == RfidEncoding::SCALE_FRAME_MODE) {
             const String frame = RfidFrameEncoder::encode(raw, RfidFrameEncoder::Mode::CT100_FRAME);
             if (frame.isEmpty()) {
                 logger.warn("RFID CT100 frame build failed");
                 return;
             }
+
             lastOutboundFrame = frame;
             tcpManager.sendLine(frame);
             return;
         }
+
         const String payload = "RFID:" + encoded + ";RAW:" + raw;
         lastOutboundFrame = payload;
         tcpManager.sendLine(payload);
@@ -224,6 +337,8 @@ void setup() {
 
     keypad.onKey([](char key) {
         lastKey = String(key);
+        beepBuzzer(40);
+
         const String payload = "KEY:" + String(key);
         lastOutboundFrame = payload;
         tcpManager.sendLine(payload);
@@ -231,14 +346,17 @@ void setup() {
 
     webServer.setConfigProvider([]() { return cfg; });
     webServer.setStatusProvider([]() { return buildStatusText(); });
+
     webServer.setRuntimeJsonProvider([]() {
         String out;
         const bool cmdTcpConnected = tcpManager.isConnected() || tcpManager.hasClient();
         const bool scaleConnected = cfg.scaleTcp.enabled && (scaleTcpManager.isConnected() || scaleTcpManager.hasClient());
+
         out += "{";
         out += "\"ip\":\"" + jsonEscapeLocal(netManager.localIP().toString()) + "\",";
         out += "\"uptimeMs\":" + String(millis()) + ",";
         out += "\"rfidLast\":\"" + jsonEscapeLocal(lastCard) + "\",";
+        out += "\"qrLast\":\"" + jsonEscapeLocal(qrLastData) + "\",";
         out += "\"keyLast\":\"" + jsonEscapeLocal(lastKey) + "\",";
         out += "\"lastOutbound\":\"" + jsonEscapeLocal(lastOutboundFrame) + "\",";
         out += "\"lastInbound\":\"" + jsonEscapeLocal(lastInboundFrame) + "\",";
@@ -250,15 +368,59 @@ void setup() {
         out += "\"rfidEnabled\":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
         out += "\"displayEnabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
         out += "\"keypadEnabled\":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
-        out += "\"discoveryEnabled\":" + String(cfg.discovery.enabled ? "true" : "false");
+        out += "\"discoveryEnabled\":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
+        out += "\"out1\":" + String(out1State ? "true" : "false") + ",";
+        out += "\"out2\":" + String(out2State ? "true" : "false") + ",";
+        out += "\"buzzer\":" + String(buzzerState ? "true" : "false");
         out += "}";
+
         return out;
     });
+
     webServer.onSave([](DeviceConfig newCfg) {
         configManager.save(newCfg);
         cfg = newCfg;
         logger.warn("Config persisted. Restart required.");
     });
+
+    webServer.onOutputCommand([](const String& cmd) {
+        if (cmd.equalsIgnoreCase("OUT1:ON")) {
+            setOut1(true);
+            logger.info("OUT1=ON (WEB)");
+            return;
+        }
+
+        if (cmd.equalsIgnoreCase("OUT1:OFF")) {
+            setOut1(false);
+            logger.info("OUT1=OFF (WEB)");
+            return;
+        }
+
+        if (cmd.equalsIgnoreCase("OUT2:ON")) {
+            setOut2(true);
+            logger.info("OUT2=ON (WEB)");
+            return;
+        }
+
+        if (cmd.equalsIgnoreCase("OUT2:OFF")) {
+            setOut2(false);
+            logger.info("OUT2=OFF (WEB)");
+            return;
+        }
+
+        if (cmd.startsWith("BUZZER:")) {
+            String msText = cmd.substring(7);
+            msText.trim();
+
+            unsigned long duration = (unsigned long)msText.toInt();
+            if (duration == 0) duration = 120;
+            if (duration > 5000UL) duration = 5000UL;
+
+            beepBuzzer(duration);
+            logger.info("BUZZER=" + String(duration) + "ms (WEB)");
+        }
+    });
+
     webServer.onReboot([]() { ESP.restart(); });
 }
 
@@ -267,14 +429,51 @@ void loop() {
     netManager.loop();
     webServer.loop();
     tcpManager.loop();
+
     if (cfg.scaleTcp.enabled) scaleTcpManager.loop();
     if (cfg.discovery.enabled) discoveryService.loop();
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();
+
+    while (Serial1.available()) {
+        char c = (char)Serial1.read();
+
+        if (c == '\n' || c == '\r') {
+            if (!qrLastData.isEmpty()) {
+                qrLastData.trim();
+                if (!qrLastData.isEmpty()) {
+                    lastOutboundFrame = "QR:" + qrLastData;
+                    tcpManager.sendLine(lastOutboundFrame);
+                    beepBuzzer(60);
+                    logger.info("QR: " + qrLastData);
+                }
+                qrLastData = "";
+            }
+        } else if (isPrintable((int)c)) {
+            qrLastData += c;
+            if (qrLastData.length() > 256) {
+                qrLastData.remove(0, qrLastData.length() - 256);
+            }
+        }
+    }
+
+    if (buzzerState && buzzerOffAt > 0 && millis() >= buzzerOffAt) {
+        setBuzzer(false);
+        buzzerOffAt = 0;
+    }
+
     if (cfg.display.enabled && millis() - lastStatusRefresh > 250UL) {
         lastStatusRefresh = millis();
-        if (bootPhase != BootScreenPhase::DONE) renderBootSequence();
-        else if (lcdCustomUntil > millis()) display.showTcp(lcdCustomText);
-        else display.showIdleWeight(activeHeaderText(), currentWeight.isEmpty() ? String("---") : currentWeight, "Zbliz karte RFID");
+
+        if (bootPhase != BootScreenPhase::DONE) {
+            renderBootSequence();
+        } else if (lcdCustomUntil > millis()) {
+            display.showTcp(lcdCustomText);
+        } else {
+            display.showIdleWeight(
+                activeHeaderText(),
+                currentWeight.isEmpty() ? String("---") : currentWeight,
+                "Zbliz karte RFID");
+        }
     }
 }

@@ -8,7 +8,10 @@ void Rfid125kHzUart::begin(uint32_t baudRate, int rxPin, int txPin, RfidEncoding
   frameBuffer_.clear();
   inFrame_ = false;
   expectedFrameSize_ = 0;
-  serial_.begin(baudRate, SERIAL_8N1, rxPin, txPin);
+
+  if (txPin >= 0) serial_.begin(baudRate, SERIAL_8N1, rxPin, txPin);
+  else serial_.begin(baudRate, SERIAL_8N1, rxPin, -1);
+
   logger_.info("RFID UART started on Serial2");
 }
 

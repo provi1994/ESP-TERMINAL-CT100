@@ -2,7 +2,7 @@
 #include "DisplayBitmaps.h"
 
 DisplayManager::DisplayManager(LogManager& logger, uint8_t clk, uint8_t mosi, uint8_t cs, uint8_t rst)
-    : logger_(logger), u8g2_(U8G2_R0, clk, mosi, cs, rst) {}
+    : logger_(logger), u8g2_(U8G2_R2, clk, mosi, cs, rst) {}
 
 void DisplayManager::begin(uint8_t contrast) {
   u8g2_.begin();
@@ -132,14 +132,12 @@ void DisplayManager::showTcp(const String& message) {
 
 void DisplayManager::showIdleWeight(const String& header, const String& weight, const String& prompt) {
   beginScreen();
-  drawHeaderBar(header);
   setDefaultFont();
-  drawTextLine(22, "Aktualna waga:");
-  u8g2_.drawFrame(4, 26, 120, 20);
+  drawTextLine(10, "Aktualna waga:");
+  u8g2_.drawFrame(4, 15, 120, 40);
   setLargeFont();
-  u8g2_.drawStr(8, 42, fit(weight, 12).c_str());
+  u8g2_.drawStr(8, 42, fit(weight, 16).c_str());
   setDefaultFont();
-  drawHintLine(prompt);
   endScreen();
 }
 

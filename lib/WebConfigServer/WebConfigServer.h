@@ -1,6 +1,7 @@
 #pragma once
 #include <WebServer.h>
 #include <functional>
+
 #include "ConfigManager.h"
 #include "LogManager.h"
 
@@ -19,6 +20,7 @@ public:
 
     void onSave(std::function<void(DeviceConfig)> callback);
     void onReboot(std::function<void()> callback);
+    void onOutputCommand(std::function<void(const String&)> callback);
 
     void setConfigProvider(std::function<DeviceConfig()> provider);
     void setStatusProvider(std::function<String()> provider);
@@ -30,6 +32,7 @@ private:
     DeviceConfig config_;
     std::function<void(DeviceConfig)> onSave_;
     std::function<void()> onReboot_;
+    std::function<void(const String&)> onOutputCommand_;
     std::function<DeviceConfig()> configProvider_;
     std::function<String()> statusProvider_;
     std::function<String()> runtimeJsonProvider_;
@@ -50,6 +53,12 @@ private:
     void handleApiConfigGet();
     void handleApiConfigPost();
     void handleApiRuntimeGet();
+
+    void handleApiOutputOut1On();
+    void handleApiOutputOut1Off();
+    void handleApiOutputOut2On();
+    void handleApiOutputOut2Off();
+    void handleApiOutputBuzzer();
 
     void handleFirmwarePage();
     void handleFirmwareUpload();
