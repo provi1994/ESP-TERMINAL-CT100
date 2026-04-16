@@ -187,7 +187,7 @@ void WebConfigServer::handleLogout() {
     server_.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     server_.sendHeader("Pragma", "no-cache");
     server_.sendHeader("Expires", "0");
-    server_.sendHeader("WWW-Authenticate", "Basic realm=\"CT-100-logout\"");
+    server_.sendHeader("WWW-Authenticate", "Basic realm="CT-100-logout"");
     server_.send(
         401,
         "text/html; charset=utf-8",
@@ -228,32 +228,32 @@ void WebConfigServer::handleApiConfigPost() {
     server_.send(
         200,
         "application/json; charset=utf-8",
-        String("{\"ok\":true,\"restartRequired\":true,\"securityEditable\":") +
+        String("{"ok":true,"restartRequired":true,"securityEditable":") +
             (allowSecurity ? "true" : "false") + "}");
 }
 
 void WebConfigServer::handleApiOutputOut1On() {
     if (!authenticate()) return;
     if (onOutputCommand_) onOutputCommand_("OUT1:ON");
-    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT1:ON\"}");
+    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT1:ON"}");
 }
 
 void WebConfigServer::handleApiOutputOut1Off() {
     if (!authenticate()) return;
     if (onOutputCommand_) onOutputCommand_("OUT1:OFF");
-    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT1:OFF\"}");
+    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT1:OFF"}");
 }
 
 void WebConfigServer::handleApiOutputOut2On() {
     if (!authenticate()) return;
     if (onOutputCommand_) onOutputCommand_("OUT2:ON");
-    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT2:ON\"}");
+    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT2:ON"}");
 }
 
 void WebConfigServer::handleApiOutputOut2Off() {
     if (!authenticate()) return;
     if (onOutputCommand_) onOutputCommand_("OUT2:OFF");
-    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT2:OFF\"}");
+    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT2:OFF"}");
 }
 
 void WebConfigServer::handleApiOutputBuzzer() {
@@ -268,7 +268,7 @@ void WebConfigServer::handleApiOutputBuzzer() {
     server_.send(
         200,
         "application/json; charset=utf-8",
-        String("{\"ok\":true,\"cmd\":\"BUZZER:") + ms + "\"}");
+        String("{"ok":true,"cmd":"BUZZER:") + ms + ""}");
 }
 
 void WebConfigServer::handleApiVirtualKey() {
@@ -278,13 +278,13 @@ void WebConfigServer::handleApiVirtualKey() {
     if (key.isEmpty()) key = server_.arg("key");
     key.trim();
     if (key.isEmpty()) {
-        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_key\"}");
+        server_.send(400, "application/json; charset=utf-8", "{"ok":false,"error":"missing_key"}");
         return;
     }
 
     if (onVirtualKey_) onVirtualKey_(key);
     logger_.info("Virtual key from web: " + key);
-    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"key\":\"") + jsonEscape(key) + "\"}");
+    server_.send(200, "application/json; charset=utf-8", String("{"ok":true,"key":"") + jsonEscape(key) + ""}");
 }
 
 void WebConfigServer::handleApiVirtualCode() {
@@ -294,13 +294,13 @@ void WebConfigServer::handleApiVirtualCode() {
     if (code.isEmpty()) code = server_.arg("code");
     code.trim();
     if (code.isEmpty()) {
-        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_code\"}");
+        server_.send(400, "application/json; charset=utf-8", "{"ok":false,"error":"missing_code"}");
         return;
     }
 
     if (onVirtualCode_) onVirtualCode_(code);
     logger_.info("Virtual code from web: " + code);
-    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"code\":\"") + jsonEscape(code) + "\"}");
+    server_.send(200, "application/json; charset=utf-8", String("{"ok":true,"code":"") + jsonEscape(code) + ""}");
 }
 
 void WebConfigServer::handleFirmwarePage() {
@@ -360,11 +360,12 @@ String WebConfigServer::jsonEscape(const String& value) {
     for (size_t i = 0; i < value.length(); ++i) {
         const char c = value[i];
         switch (c) {
-            case '\\': out += "\\\\"; break;
-            case '"': out += "\\\""; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
+            case '\': out += "\\"; break;
+            case '"': out += "\""; break;
+            case '
+': out += "\n"; break;
+            case '': out += "\r"; break;
+            case '	': out += "\t"; break;
             default:
                 if ((uint8_t)c >= 32) out += c;
                 break;
@@ -379,15 +380,15 @@ String WebConfigServer::buildDeviceInfoJson(const DeviceConfig& cfg) {
     out.reserve(512);
 
     out += "{";
-    out += "\"deviceId\":\"" + jsonEscape(String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX)) + "\",";
-    out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
-    out += "\"fw\":\"0.1.0\",";
-    out += "\"ip\":\"" + ETH.localIP().toString() + "\",";
-    out += "\"mac\":\"" + ETH.macAddress() + "\",";
-    out += "\"tcpListenPort\":" + String(cfg.tcp.listenPort) + ",";
-    out += "\"scaleListenPort\":" + String(cfg.scaleTcp.listenPort) + ",";
-    out += "\"discoveryPort\":" + String(cfg.discovery.udpPort) + ",";
-    out += "\"currentRole\":\"" + currentRoleName() + "\"";
+    out += ""deviceId":"" + jsonEscape(String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX)) + "",";
+    out += ""deviceName":"" + jsonEscape(cfg.network.deviceName) + "",";
+    out += ""fw":"0.1.0",";
+    out += ""ip":"" + ETH.localIP().toString() + "",";
+    out += ""mac":"" + ETH.macAddress() + "",";
+    out += ""tcpListenPort":" + String(cfg.tcp.listenPort) + ",";
+    out += ""scaleListenPort":" + String(cfg.scaleTcp.listenPort) + ",";
+    out += ""discoveryPort":" + String(cfg.discovery.udpPort) + ",";
+    out += ""currentRole":"" + currentRoleName() + """;
     out += "}";
 
     return out;
@@ -401,61 +402,61 @@ String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) {
 
     out += "{";
 
-    out += "\"network\":{";
-    out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
-    out += "\"mode\":\"" + ConfigManager::networkModeToString(cfg.network.mode) + "\",";
-    out += "\"ip\":\"" + cfg.network.ip.toString() + "\",";
-    out += "\"gateway\":\"" + cfg.network.gateway.toString() + "\",";
-    out += "\"subnet\":\"" + cfg.network.subnet.toString() + "\",";
-    out += "\"dns1\":\"" + cfg.network.dns1.toString() + "\",";
-    out += "\"dns2\":\"" + cfg.network.dns2.toString() + "\"";
+    out += ""network":{";
+    out += ""deviceName":"" + jsonEscape(cfg.network.deviceName) + "",";
+    out += ""mode":"" + ConfigManager::networkModeToString(cfg.network.mode) + "",";
+    out += ""ip":"" + cfg.network.ip.toString() + "",";
+    out += ""gateway":"" + cfg.network.gateway.toString() + "",";
+    out += ""subnet":"" + cfg.network.subnet.toString() + "",";
+    out += ""dns1":"" + cfg.network.dns1.toString() + "",";
+    out += ""dns2":"" + cfg.network.dns2.toString() + """;
     out += "},";
 
-    out += "\"tcp\":{";
-    out += "\"mode\":\"" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\",";
-    out += "\"serverIp\":\"" + jsonEscape(cfg.tcp.serverIp) + "\",";
-    out += "\"serverPort\":" + String(cfg.tcp.serverPort) + ",";
-    out += "\"listenPort\":" + String(cfg.tcp.listenPort);
+    out += ""tcp":{";
+    out += ""mode":"" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "",";
+    out += ""serverIp":"" + jsonEscape(cfg.tcp.serverIp) + "",";
+    out += ""serverPort":" + String(cfg.tcp.serverPort) + ",";
+    out += ""listenPort":" + String(cfg.tcp.listenPort);
     out += "},";
 
-    out += "\"scaleTcp\":{";
-    out += "\"enabled\":" + String(cfg.scaleTcp.enabled ? "true" : "false") + ",";
-    out += "\"mode\":\"" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\",";
-    out += "\"serverIp\":\"" + jsonEscape(cfg.scaleTcp.serverIp) + "\",";
-    out += "\"serverPort\":" + String(cfg.scaleTcp.serverPort) + ",";
-    out += "\"listenPort\":" + String(cfg.scaleTcp.listenPort);
+    out += ""scaleTcp":{";
+    out += ""enabled":" + String(cfg.scaleTcp.enabled ? "true" : "false") + ",";
+    out += ""mode":"" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "",";
+    out += ""serverIp":"" + jsonEscape(cfg.scaleTcp.serverIp) + "",";
+    out += ""serverPort":" + String(cfg.scaleTcp.serverPort) + ",";
+    out += ""listenPort":" + String(cfg.scaleTcp.listenPort);
     out += "},";
 
-    out += "\"rfid\":{";
-    out += "\"enabled\":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
-    out += "\"baudRate\":" + String(cfg.rfid.baudRate) + ",";
-    out += "\"encoding\":\"" + ConfigManager::rfidEncodingToString(cfg.rfid.encoding) + "\"";
+    out += ""rfid":{";
+    out += ""enabled":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
+    out += ""baudRate":" + String(cfg.rfid.baudRate) + ",";
+    out += ""encoding":"" + ConfigManager::rfidEncodingToString(cfg.rfid.encoding) + """;
     out += "},";
 
-    out += "\"display\":{";
-    out += "\"enabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
-    out += "\"contrast\":" + String(cfg.display.contrast);
+    out += ""display":{";
+    out += ""enabled":" + String(cfg.display.enabled ? "true" : "false") + ",";
+    out += ""contrast":" + String(cfg.display.contrast);
     out += "},";
 
-    out += "\"keypad\":{";
-    out += "\"enabled\":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
-    out += "\"pcf8574Address\":" + String(cfg.keypad.pcf8574Address);
+    out += ""keypad":{";
+    out += ""enabled":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
+    out += ""pcf8574Address":" + String(cfg.keypad.pcf8574Address);
     out += "},";
 
-    out += "\"discovery\":{";
-    out += "\"enabled\":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
-    out += "\"udpPort\":" + String(cfg.discovery.udpPort);
+    out += ""discovery":{";
+    out += ""enabled":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
+    out += ""udpPort":" + String(cfg.discovery.udpPort);
     out += "},";
 
-    out += "\"security\":{";
-    out += "\"serviceUser\":\"" + jsonEscape(cfg.security.serviceUser) + "\"";
+    out += ""security":{";
+    out += ""serviceUser":"" + jsonEscape(cfg.security.serviceUser) + """;
     if (admin) {
-        out += ",\"adminUser\":\"" + jsonEscape(cfg.security.adminUser) + "\"";
+        out += ","adminUser":"" + jsonEscape(cfg.security.adminUser) + """;
     }
     out += "},";
 
-    out += "\"permissions\":{";
-    out += "\"canEditSecurity\":" + String(admin ? "true" : "false");
+    out += ""permissions":{";
+    out += ""canEditSecurity":" + String(admin ? "true" : "false");
     out += "}";
 
     out += "}";
@@ -464,257 +465,1594 @@ String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) {
 }
 
 String WebConfigServer::buildPage(const DeviceConfig& cfg) {
-    String html = R"HTML(
-<!doctype html>
+    (void)cfg;
+    String html = R"HTML_WEBCFG(
+<!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CT-100 panel operatorski</title>
-<style>
-:root{--bg:#e9ecef;--panel:#a7a7a7;--screen:#f2f2f2;--blue:#0d77bf;--ok:#119700;--cancel:#a60000;--text:#1b1b1b}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
-.wrap{max-width:1280px;margin:0 auto;padding:24px}
-.top{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:20px}
-.badges{display:flex;gap:10px;flex-wrap:wrap}
-.badge{background:#fff;border:1px solid #d0d7df;border-radius:12px;padding:10px 14px}
-.btn{border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
-.btn-blue{background:#0d77bf;color:#fff}.btn-gray{background:#4b4d4f;color:#fff}.btn-red{background:#a60000;color:#fff}.btn-green{background:#119700;color:#fff}.btn-orange{background:#d97800;color:#fff}
-.layout{display:grid;grid-template-columns:380px 1fr;gap:24px}
-.terminal{background:#a7a7a7;border:2px solid #3c3c3c;padding:18px 20px 10px;border-radius:2px;max-width:340px;margin:0 auto}
-.logo{width:122px;margin:0 auto 8px;background:var(--blue);color:#fff;text-align:center;padding:8px 10px;font-weight:700;font-size:18px}
-.screen{background:#f2f2f2;border:3px solid #111;height:152px;padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between}
-.screen-title{font-size:15px;font-weight:700;text-align:center}
-.screen-main{font-size:28px;font-weight:700;text-align:center;word-break:break-word;min-height:34px}
-.screen-sub{font-size:14px;text-align:center;min-height:18px}
-.screen-hint{font-size:13px;text-align:center;color:#444}
-.func-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:20px 12px 18px}
-.func-btn,.digit,.ok,.cancel{height:56px;border-radius:8px;border:2px solid #d0d0d0;color:#fff;font-size:18px;cursor:pointer}
-.func-btn{background:#969696;color:#eaeaea;border-color:#727272;height:40px;font-size:20px}
-.mid-hole{background:#fff;color:#000;border:3px solid #111;font-size:14px;font-weight:700;line-height:1.1}
-.keys{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
-.digit{background:#5a5a5a;font-size:42px}
-.cancel{background:var(--cancel);font-size:26px}
-.ok{background:var(--ok);font-size:26px}
-.rightcol{display:grid;gap:18px}
-.card{background:#fff;border:1px solid #d7dfe7;border-radius:18px;padding:18px}
-.section-title{font-size:22px;font-weight:700;margin-bottom:8px}
-.muted{color:#5f6872}
-.inline{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.input{width:100%;padding:12px 14px;border:1px solid #cfd8e3;border-radius:12px;font-size:18px}
-.status{font-size:15px;font-weight:700;min-height:20px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.kv{background:#f8fafc;border:1px solid #e2e8ef;border-radius:14px;padding:12px}
-.kv .k{font-size:12px;text-transform:uppercase;color:#6b7280;margin-bottom:6px}
-.kv .v{font-size:18px;font-weight:700;word-break:break-word}
-@media(max-width:980px){.layout{grid-template-columns:1fr}.terminal{max-width:360px}}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CT-100 · Panel serwisowy</title>
+  <style>
+    :root {
+      --dark-blue: #00263E;
+      --medium-blue: #0077C0;
+      --light-blue: #50BCEB;
+      --green: #76C043;
+      --orange: #F18A00;
+      --dark-gray: #4B4D4F;
+      --panel-gray: #A9A9A9;
+      --screen: #F5F5F0;
+      --page: #E9ECEF;
+      --card: #FFFFFF;
+      --line: #D8E0E7;
+      --text: #14212E;
+      --muted: #5C6B79;
+      --ok-bg: rgba(118, 192, 67, 0.18);
+      --warn-bg: rgba(241, 138, 0, 0.18);
+      --info-bg: rgba(80, 188, 235, 0.18);
+      --danger: #A60000;
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 16px;
+      --shadow: 0 18px 42px rgba(0, 38, 62, 0.12);
+      --shadow-soft: 0 10px 24px rgba(0, 38, 62, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      background: var(--page);
+      color: var(--text);
+      padding: 14px;
+    }
+    button, input, select, textarea { font: inherit; }
+    a { color: inherit; }
+
+    .app {
+      max-width: 1600px;
+      margin: 0 auto;
+      min-height: calc(100vh - 28px);
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar {
+      background: linear-gradient(180deg, var(--dark-blue) 0%, #073756 100%);
+      color: #fff;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .brand-card, .quick-card, .account-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 28px;
+      padding: 18px;
+    }
+
+    .brand-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .brand-logo {
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      background: var(--medium-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      color: #B5DBF2;
+    }
+
+    .brand-title {
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .brand-copy, .account-copy {
+      font-size: 14px;
+      line-height: 1.48;
+      color: #E6EDF3;
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .nav a {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      text-decoration: none;
+      color: #E8EEF3;
+      font-weight: 700;
+      transition: .18s ease;
+    }
+
+    .nav a:hover, .nav a.active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .nav-badge, .pill-badge, .mini-tag, .tiny-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      white-space: nowrap;
+    }
+    .nav-badge { background: rgba(80, 188, 235, 0.16); color: var(--dark-blue); }
+    .pill-badge.ok, .mini-tag.ok, .tiny-badge.ok { background: var(--ok-bg); color: var(--dark-blue); }
+    .pill-badge.warn, .mini-tag.warn, .tiny-badge.warn { background: var(--warn-bg); color: var(--dark-blue); }
+    .pill-badge.info, .mini-tag.info, .tiny-badge.info { background: var(--info-bg); color: var(--dark-blue); }
+    .pill-badge.dark, .mini-tag.dark, .tiny-badge.dark { background: var(--dark-gray); color: #fff; }
+
+    .quick-title {
+      margin: 0 0 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .24em;
+      color: #B5DBF2;
+    }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 8px;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 16px;
+      min-height: 44px;
+      padding: 11px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn.white { background: #fff; color: var(--text); }
+    .btn.blue { background: var(--medium-blue); color: #fff; }
+    .btn.green { background: var(--green); color: #fff; }
+    .btn.orange { background: var(--orange); color: #fff; }
+    .btn.gray { background: var(--dark-gray); color: #fff; }
+    .btn.red { background: var(--danger); color: #fff; }
+    .btn.outline {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+    .btn.full { width: 100%; }
+
+    .content {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, #FFFFFF 0%, #F7FAFC 100%);
+    }
+
+    .mobile-bar {
+      display: none;
+      padding: 12px 12px 0;
+    }
+
+    .mobile-toggle {
+      width: 100%;
+      border: 0;
+      background: var(--dark-blue);
+      color: #fff;
+      border-radius: 18px;
+      padding: 14px 16px;
+      font-weight: 800;
+      text-align: left;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      padding: 22px 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.9);
+      backdrop-filter: blur(10px);
+    }
+
+    .page-title {
+      margin: 6px 0 0;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1.08;
+    }
+
+    .page-copy {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+      max-width: 680px;
+    }
+
+    .pills {
+      min-width: 560px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+    }
+
+    .pill {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .pill .k {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      color: var(--muted);
+    }
+
+    .pill .v {
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 800;
+      word-break: break-word;
+    }
+
+    .main {
+      padding: 26px 28px 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .cards-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 16px;
+    }
+
+    .cols-2-1 {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1fr);
+      gap: 16px;
+    }
+
+    .cols-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 20px;
+      box-shadow: var(--shadow-soft);
+      min-width: 0;
+    }
+
+    .card.soft { background: #F8FBFD; }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .card-sub {
+      margin-top: 5px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .metric-name {
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.08;
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+
+    .metric-sub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.42;
+    }
+
+    .lcd-shell {
+      display: grid;
+      grid-template-columns: 330px minmax(0,1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .terminal {
+      background: var(--panel-gray);
+      border: 2px solid #383838;
+      padding: 18px 16px 12px;
+      max-width: 336px;
+      border-radius: 2px;
+      margin: 0 auto;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+
+    .terminal-logo {
+      width: 122px;
+      margin: 0 auto 10px;
+      background: var(--medium-blue);
+      color: #fff;
+      text-align: center;
+      padding: 8px 10px;
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    .terminal-screen {
+      background: var(--screen);
+      border: 3px solid #111;
+      min-height: 154px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .screen-top {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.3;
+      min-height: 34px;
+    }
+
+    .screen-main {
+      text-align: center;
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.1;
+      min-height: 30px;
+      word-break: break-word;
+    }
+
+    .screen-bottom {
+      text-align: center;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.35;
+      min-height: 34px;
+    }
+
+    .func-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin: 20px 12px 18px;
+    }
+
+    .func-btn, .digit, .ok-key, .cancel-key {
+      border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.3);
+      cursor: pointer;
+      color: #fff;
+    }
+
+    .func-btn {
+      height: 40px;
+      background: #999;
+      color: #ececec;
+      border-color: #6f6f6f;
+      font-size: 20px;
+    }
+
+    .mid-hole {
+      background: #fff;
+      color: #111;
+      border: 3px solid #111;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.05;
+    }
+
+    .keys {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 14px;
+    }
+
+    .digit {
+      height: 56px;
+      background: #5a5a5a;
+      font-size: 42px;
+    }
+
+    .cancel-key {
+      height: 56px;
+      background: var(--danger);
+      font-size: 24px;
+    }
+
+    .ok-key {
+      height: 56px;
+      background: #0B9805;
+      font-size: 24px;
+    }
+
+    .lcd-side {
+      display: grid;
+      gap: 14px;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+    }
+
+    .mini-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      padding: 12px;
+    }
+
+    .mini-card .k {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      color: var(--muted);
+    }
+
+    .mini-card .v {
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 800;
+      word-break: break-word;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .input, .select, .textarea {
+      width: 100%;
+      border: 1px solid #C9D4DF;
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px 14px;
+      color: var(--text);
+      min-height: 46px;
+    }
+
+    .textarea {
+      min-height: 118px;
+      resize: vertical;
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .row-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .row-item {
+      border: 1px solid #E4EBF0;
+      border-radius: 16px;
+      background: #F8FBFD;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .row-item .l {
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .row-item .r {
+      text-align: right;
+      font-weight: 800;
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    .tcp-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .tcp-item {
+      border: 1px solid #E5ECF1;
+      border-radius: 18px;
+      background: #F8FBFD;
+      padding: 14px;
+    }
+
+    .tcp-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .tcp-name { font-weight: 800; }
+    .tcp-desc {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .events {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #F7FAFD; }
+    th, td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid #EAF0F4;
+      font-size: 14px;
+      vertical-align: top;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    .mono { font-family: "Courier New", monospace; color: #617382; }
+
+    .segment {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .segment button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .segment button.active {
+      background: var(--dark-blue);
+      color: #fff;
+      border-color: var(--dark-blue);
+    }
+
+    .hidden { display: none !important; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: var(--dark-blue);
+      color: #fff;
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      display: none;
+      z-index: 30;
+      max-width: 320px;
+    }
+
+    .loading::after {
+      content: ' · odświeżanie';
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    @media (max-width: 1320px) {
+      .cards-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .cols-2-1, .lcd-shell, .cols-3 { grid-template-columns: 1fr; }
+      .pills { min-width: 0; grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+
+    @media (max-width: 980px) {
+      body { padding: 10px; }
+      .mobile-bar { display: block; }
+      .app { grid-template-columns: 1fr; min-height: auto; }
+      .sidebar { display: none; }
+      .app.nav-open .sidebar { display: flex; }
+      .topbar { flex-direction: column; align-items: stretch; padding: 18px; }
+      .main { padding: 18px; }
+      .cards-4, .form-grid, .mini-grid, .pills { grid-template-columns: 1fr; }
+      .page-title { font-size: 28px; }
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <div>
-      <h1 style="margin:0 0 6px 0">CT-100 panel operatorski</h1>
-      <div class="muted">Sterowanie urzadzeniem z webservera, wpisywanie kodu i obsluga wyjsc.</div>
-    </div>
-    <div class="badges">
-      <div class="badge"><strong>Rola:</strong> %CURRENT_ROLE%</div>
-      <div class="badge"><strong>Uzytkownik:</strong> %CURRENT_USER%</div>
-      <div class="badge"><strong>Urzadzenie:</strong> %DEVICE_NAME%</div>
-      <a class="btn btn-gray" href="/logs">Logi</a>
-      <a class="btn btn-gray" href="/firmware">Firmware</a>
-      <a class="btn btn-red" href="/logout">Wyloguj</a>
-    </div>
+  <div class="mobile-bar">
+    <button class="mobile-toggle" id="mobileToggle">☰ Menu panelu CT-100</button>
   </div>
 
-  <div class="layout">
-    <section>
-      <div class="terminal">
-        <div class="logo">TAMTRON</div>
-        <div class="screen">
-          <div class="screen-title" id="deviceScreenTitle">Terminal CT-100</div>
-          <div class="screen-main" id="deviceScreenMain">---</div>
-          <div class="screen-sub" id="deviceScreenSub">Gotowe</div>
-          <div class="screen-hint" id="deviceScreenHint">Wpisz kod lub uzyj klawiszy.</div>
+  <div class="app" id="appRoot">
+    <aside class="sidebar">
+      <section class="brand-card">
+        <div class="brand-top">
+          <div class="brand-logo">CT</div>
+          <div>
+            <div class="eyebrow">Tamtron</div>
+            <div class="brand-title">Panel serwisowy</div>
+          </div>
         </div>
+        <div class="brand-copy">Rozszerzony webserver do konfiguracji, sterowania i pełniejszego podglądu runtime bez zmiany logiki firmware.</div>
+      </section>
 
-        <div class="func-row">
-          <button class="func-btn" type="button" onclick="sendVirtualKey('F1')">F1</button>
-          <button class="func-btn mid-hole" type="button" onclick="sendVirtualKey('MID')">OTWOR<br>20x10</button>
-          <button class="func-btn" type="button" onclick="sendVirtualKey('F2')">F2</button>
-        </div>
+      <nav class="nav">
+        <a href="#dashboard" class="active"><span>Dashboard</span><span class="nav-badge">Live</span></a>
+        <a href="#config"><span>Konfiguracja</span></a>
+        <a href="#control"><span>Sterowanie</span></a>
+        <a href="#diagnostics"><span>Diagnostyka</span></a>
+        <a href="#system"><span>System</span></a>
+      </nav>
 
-        <div class="keys">
-          <button class="digit" type="button" onclick="appendDigit('1')">1</button>
-          <button class="digit" type="button" onclick="appendDigit('2')">2</button>
-          <button class="digit" type="button" onclick="appendDigit('3')">3</button>
-          <button class="digit" type="button" onclick="appendDigit('4')">4</button>
-          <button class="digit" type="button" onclick="appendDigit('5')">5</button>
-          <button class="digit" type="button" onclick="appendDigit('6')">6</button>
-          <button class="digit" type="button" onclick="appendDigit('7')">7</button>
-          <button class="digit" type="button" onclick="appendDigit('8')">8</button>
-          <button class="digit" type="button" onclick="appendDigit('9')">9</button>
-          <button class="cancel" type="button" onclick="clearCode()">X</button>
-          <button class="digit" type="button" onclick="appendDigit('0')">0</button>
-          <button class="ok" type="button" onclick="submitCode()">OK</button>
+      <section class="quick-card">
+        <h3 class="quick-title">Szybkie akcje</h3>
+        <div class="quick-grid">
+          <button class="btn white" id="refreshBtn">Odśwież</button>
+          <button class="btn blue" id="saveBtn">Zapisz</button>
+          <button class="btn gray" id="statusBtn">Status TXT</button>
+          <button class="btn orange" id="firmwareBtn">Firmware</button>
+          <button class="btn green" id="logsBtn">Logi</button>
+          <button class="btn red" id="restartBtn">Restart</button>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="rightcol">
-      <div class="card">
-        <div class="section-title">Kod z webservera</div>
-        <div class="muted">Kod mozesz wpisac klawiatura ekranowa albo recznie w polu ponizej.</div>
-        <div class="inline" style="margin-top:14px">
-          <input id="manualCode" class="input" placeholder="Wpisz kod produktu / operatora">
+      <section class="account-card">
+        <div class="eyebrow">Sesja</div>
+        <div class="account-copy" style="margin-top:8px;">
+          Rola: <strong id="roleText">-</strong><br>
+          Użytkownik: <strong id="userText">-</strong><br>
+          Edycja security: <strong id="securityEditText">-</strong>
         </div>
-        <div class="inline" style="margin-top:14px">
-          <button class="btn btn-blue" type="button" onclick="submitManualCode()">Wyslij kod</button>
-          <button class="btn btn-gray" type="button" onclick="clearCode()">Wyczysc</button>
-        </div>
-        <div class="status" id="codeStatus" style="margin-top:12px">Gotowe.</div>
-      </div>
+      </section>
+    </aside>
 
-      <div class="card">
-        <div class="section-title">Sterowanie wyjsciami</div>
-        <div class="inline" style="margin-top:10px">
-          <button class="btn btn-green" type="button" onclick="fireOutput('/api/output/out1/on')">OUT1 ON</button>
-          <button class="btn btn-red" type="button" onclick="fireOutput('/api/output/out1/off')">OUT1 OFF</button>
-          <button class="btn btn-green" type="button" onclick="fireOutput('/api/output/out2/on')">OUT2 ON</button>
-          <button class="btn btn-red" type="button" onclick="fireOutput('/api/output/out2/off')">OUT2 OFF</button>
-          <button class="btn btn-orange" type="button" onclick="fireOutput('/api/output/buzzer?ms=120')">BUZZER</button>
+    <section class="content">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" style="color: var(--muted);">CT-100 / Webserver</div>
+          <h1 class="page-title">Widok serwisowy i konfiguracyjny</h1>
+          <div class="page-copy">Interfejs oparty o istniejące endpointy firmware. Zawiera pełny zapis konfiguracji, sterowanie wyjściami, wirtualną klawiaturę, lepszy runtime i czytelniejszy podgląd urządzenia.</div>
         </div>
-      </div>
+        <div class="pills">
+          <div class="pill"><div class="k">Urządzenie</div><div class="v" id="pillDevice">-</div></div>
+          <div class="pill"><div class="k">IP</div><div class="v" id="pillIp">-</div></div>
+          <div class="pill"><div class="k">Firmware</div><div class="v" id="pillFw">-</div></div>
+          <div class="pill"><div class="k">MAC</div><div class="v" id="pillMac">-</div></div>
+        </div>
+      </header>
 
-      <div class="card">
-        <div class="section-title">Stan urzadzenia</div>
-        <div class="grid">
-          <div class="kv"><div class="k">IP</div><div class="v" id="liveIp">-</div></div>
-          <div class="kv"><div class="k">Ostatnia karta</div><div class="v" id="rfidLast">-</div></div>
-          <div class="kv"><div class="k">Ostatni klawisz</div><div class="v" id="keyLast">-</div></div>
-          <div class="kv"><div class="k">Ostatnia waga</div><div class="v" id="scaleLast">-</div></div>
-          <div class="kv"><div class="k">OUT1</div><div class="v" id="out1State">-</div></div>
-          <div class="kv"><div class="k">OUT2</div><div class="v" id="out2State">-</div></div>
-        </div>
-      </div>
+      <main class="main" id="mainRoot">
+        <section id="dashboard" class="cards-4"></section>
+
+        <section class="card soft">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">Podgląd urządzenia i wirtualna klawiatura</h2>
+              <div class="card-sub">Styl bazuje na urządzeniu z przesłanego projektu graficznego. Działa wyłącznie przez istniejące endpointy klawiatury i kodu.</div>
+            </div>
+            <span class="mini-tag info">bez zmian logiki</span>
+          </div>
+
+          <div class="lcd-shell">
+            <div class="terminal">
+              <div class="terminal-logo">TAMTRON</div>
+              <div class="terminal-screen">
+                <div class="screen-top" id="screenTop">Oczekiwanie na dane</div>
+                <div class="screen-main" id="screenMain">---</div>
+                <div class="screen-bottom" id="screenBottom">Zbliż kartę RFID lub wpisz kod.</div>
+              </div>
+
+              <div class="func-row">
+                <button class="func-btn" onclick="sendVirtualKey('F1')">F1</button>
+                <button class="func-btn mid-hole" onclick="sendVirtualKey('MID')">Otwór<br>20x10</button>
+                <button class="func-btn" onclick="sendVirtualKey('F2')">F2</button>
+              </div>
+
+              <div class="keys">
+                <button class="digit" onclick="appendDigit('1')">1</button>
+                <button class="digit" onclick="appendDigit('2')">2</button>
+                <button class="digit" onclick="appendDigit('3')">3</button>
+                <button class="digit" onclick="appendDigit('4')">4</button>
+                <button class="digit" onclick="appendDigit('5')">5</button>
+                <button class="digit" onclick="appendDigit('6')">6</button>
+                <button class="digit" onclick="appendDigit('7')">7</button>
+                <button class="digit" onclick="appendDigit('8')">8</button>
+                <button class="digit" onclick="appendDigit('9')">9</button>
+                <button class="cancel-key" onclick="clearCodeBuffer()">X</button>
+                <button class="digit" onclick="appendDigit('0')">0</button>
+                <button class="ok-key" onclick="submitCodeBuffer()">OK</button>
+              </div>
+            </div>
+
+            <div class="lcd-side">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h3 class="card-title">Wysyłanie kodu i klawiszy</h3>
+                    <div class="card-sub">Kod może być wysłany z bufora klawiatury ekranowej albo ręcznie.</div>
+                  </div>
+                  <span class="tiny-badge ok">TCP/API</span>
+                </div>
+
+                <div class="field">
+                  <label for="manualCode">Kod ręczny</label>
+                  <input class="input" id="manualCode" placeholder="np. 12345 lub kod produktu" />
+                </div>
+
+                <div class="inline-actions">
+                  <button class="btn blue" id="sendCodeBtn">Wyślij kod</button>
+                  <button class="btn outline" id="clearCodeBtn">Wyczyść</button>
+                  <button class="btn gray" id="sendHashBtn">Wyślij #</button>
+                  <button class="btn gray" id="sendStarBtn">Wyślij *</button>
+                </div>
+
+                <div class="field" style="margin-top:16px;">
+                  <label for="commandMirror">Podgląd bufora</label>
+                  <textarea class="textarea" id="commandMirror" readonly></textarea>
+                </div>
+              </div>
+
+              <div class="mini-grid">
+                <div class="mini-card"><div class="k">Ostatni RFID</div><div class="v" id="miniRfid">-</div></div>
+                <div class="mini-card"><div class="k">Ostatni QR</div><div class="v" id="miniQr">-</div></div>
+                <div class="mini-card"><div class="k">Ostatni klawisz</div><div class="v" id="miniKey">-</div></div>
+                <div class="mini-card"><div class="k">Ostatni kod WWW</div><div class="v" id="miniWebCode">-</div></div>
+                <div class="mini-card"><div class="k">Wyjście OUT1</div><div class="v" id="miniOut1">-</div></div>
+                <div class="mini-card"><div class="k">Wyjście OUT2</div><div class="v" id="miniOut2">-</div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cols-3" id="config">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Sieć i bezpieczeństwo</h2>
+                <div class="card-sub">Formularz zapisuje payload w formacie zgodnym z aktualnym parserem REST po stronie firmware.</div>
+              </div>
+              <span class="tiny-badge info">REST save</span>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>Nazwa urządzenia</label><input class="input" id="cfg_deviceName" /></div>
+              <div class="field"><label>Tryb sieci</label><select class="select" id="cfg_networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div>
+              <div class="field"><label>IP</label><input class="input" id="cfg_ip" /></div>
+              <div class="field"><label>Brama</label><input class="input" id="cfg_gateway" /></div>
+              <div class="field"><label>Maska</label><input class="input" id="cfg_subnet" /></div>
+              <div class="field"><label>DNS 1</label><input class="input" id="cfg_dns1" /></div>
+              <div class="field"><label>DNS 2</label><input class="input" id="cfg_dns2" /></div>
+              <div class="field"><label>Login service</label><input class="input" id="cfg_serviceUser" /></div>
+              <div class="field"><label>Hasło service</label><input class="input" id="cfg_servicePassword" /></div>
+              <div class="field"><label>Login admin</label><input class="input" id="cfg_adminUser" /></div>
+              <div class="field"><label>Hasło admin</label><input class="input" id="cfg_adminPassword" /></div>
+              <div class="field"><label>Hasło OTA</label><input class="input" id="cfg_otaPassword" /></div>
+            </div>
+            <div class="inline-actions">
+              <button class="btn blue" id="saveNetworkSecurityBtn">Zapisz konfigurację</button>
+              <button class="btn outline" id="reloadConfigBtn">Przeładuj</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">TCP, RFID i I/O</h2>
+                <div class="card-sub">Pełna konfiguracja transportów oraz urządzeń wejścia/wyjścia.</div>
+              </div>
+              <span class="tiny-badge warn">runtime+cfg</span>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>Tryb TCP komend</label><select class="select" id="cfg_tcpMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div>
+              <div class="field"><label>TCP server IP</label><input class="input" id="cfg_serverIp" /></div>
+              <div class="field"><label>TCP server port</label><input class="input" id="cfg_serverPort" type="number" /></div>
+              <div class="field"><label>TCP listen port</label><input class="input" id="cfg_listenPort" type="number" /></div>
+              <div class="field"><label>Scale enabled</label><select class="select" id="cfg_scaleEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+              <div class="field"><label>Scale TCP mode</label><select class="select" id="cfg_scaleMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div>
+              <div class="field"><label>Scale server IP</label><input class="input" id="cfg_scaleServerIp" /></div>
+              <div class="field"><label>Scale server port</label><input class="input" id="cfg_scaleServerPort" type="number" /></div>
+              <div class="field"><label>Scale listen port</label><input class="input" id="cfg_scaleListenPort" type="number" /></div>
+              <div class="field"><label>RFID enabled</label><select class="select" id="cfg_rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+              <div class="field"><label>RFID baud</label><input class="input" id="cfg_baudRate" type="number" /></div>
+              <div class="field"><label>RFID encoding</label><select class="select" id="cfg_encoding"><option value="hex">HEX</option><option value="dec">DEC</option><option value="raw">RAW</option><option value="scale_frame">SCALE_FRAME</option></select></div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">LCD, keypad i discovery</h2>
+                <div class="card-sub">Parametry sprzętowe i serwisowe wykorzystywane podczas bootu oraz pracy.</div>
+              </div>
+              <span class="tiny-badge dark">hardware</span>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>LCD enabled</label><select class="select" id="cfg_displayEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+              <div class="field"><label>Kontrast LCD</label><input class="input" id="cfg_contrast" type="number" min="0" max="255" /></div>
+              <div class="field"><label>Keypad enabled</label><select class="select" id="cfg_keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+              <div class="field"><label>PCF8574 address</label><input class="input" id="cfg_pcf8574Address" type="number" /></div>
+              <div class="field"><label>Discovery enabled</label><select class="select" id="cfg_discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+              <div class="field"><label>UDP discovery port</label><input class="input" id="cfg_udpPort" type="number" /></div>
+            </div>
+            <div class="inline-actions">
+              <button class="btn blue" id="saveAllBtn">Zapisz całość</button>
+              <button class="btn orange" id="restartAfterSaveBtn">Zapisz i przypomnij restart</button>
+            </div>
+          </section>
+        </section>
+
+        <section class="cols-2-1" id="control">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Sterowanie wyjściami i akustyką</h2>
+                <div class="card-sub">Komendy sterujące wykorzystują istniejące endpointy OUT1, OUT2 i buzzer.</div>
+              </div>
+              <span class="tiny-badge ok">live control</span>
+            </div>
+            <div class="segment">
+              <button class="active" data-ms="120">120 ms</button>
+              <button data-ms="250">250 ms</button>
+              <button data-ms="500">500 ms</button>
+              <button data-ms="1000">1000 ms</button>
+            </div>
+            <div class="inline-actions">
+              <button class="btn green" id="out1OnBtn">OUT1 ON</button>
+              <button class="btn red" id="out1OffBtn">OUT1 OFF</button>
+              <button class="btn green" id="out2OnBtn">OUT2 ON</button>
+              <button class="btn red" id="out2OffBtn">OUT2 OFF</button>
+              <button class="btn orange" id="buzzerBtn">BUZZER</button>
+            </div>
+            <div class="events" style="margin-top:16px;">
+              <table>
+                <thead>
+                  <tr><th>Czas</th><th>Źródło</th><th>Treść</th></tr>
+                </thead>
+                <tbody id="controlEvents"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Stan I/O</h2>
+                <div class="card-sub">Podsumowanie flag runtime i ostatnich zdarzeń.</div>
+              </div>
+            </div>
+            <div class="row-list" id="ioStateList"></div>
+          </section>
+        </section>
+
+        <section class="cols-2-1" id="diagnostics">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Diagnostyka komunikacji</h2>
+                <div class="card-sub">Komendy, waga, wejścia, ostatni ruch danych oraz stan aktywności modułów.</div>
+              </div>
+              <span class="tiny-badge info">runtime</span>
+            </div>
+            <div class="tcp-stack" id="tcpStack"></div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Szybki podgląd</h2>
+                <div class="card-sub">Pobierane z /api/runtime i /api/device/info.</div>
+              </div>
+            </div>
+            <div class="row-list" id="diagQuickList"></div>
+          </section>
+        </section>
+
+        <section class="cols-3" id="system">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Status TXT</h2>
+                <div class="card-sub">Surowy snapshot tekstowy z firmware.</div>
+              </div>
+              <button class="btn outline" id="reloadStatusBtn">Odśwież TXT</button>
+            </div>
+            <textarea class="textarea" id="statusText" readonly></textarea>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Logi</h2>
+                <div class="card-sub">Szybkie przejście do pełnych logów oraz najważniejsze wskaźniki.</div>
+              </div>
+              <button class="btn outline" id="openLogsBtn">Otwórz logi</button>
+            </div>
+            <div class="row-list" id="systemFacts"></div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2 class="card-title">Akcje systemowe</h2>
+                <div class="card-sub">Restart i przejścia do ekranów serwisowych firmware.</div>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <button class="btn orange full" id="goFirmwareBtn">Firmware OTA</button>
+              <button class="btn gray full" id="goStatusBtn">Status TXT</button>
+              <button class="btn green full" id="goLogsBtn">Logi</button>
+              <button class="btn red full" id="systemRestartBtn">Restart urządzenia</button>
+            </div>
+          </section>
+        </section>
+      </main>
     </section>
   </div>
-</div>
 
-<script>
-(function(){
-  let codeBuffer = "";
-  const el = (id) => document.getElementById(id);
+  <div class="toast" id="toast"></div>
 
-  function setText(id, value){
-    const node = el(id);
-    if(node) node.textContent = (value === undefined || value === null || value === "") ? "-" : value;
-  }
+  <script>
+    const state = {
+      device: null,
+      config: null,
+      runtime: null,
+      statusText: '',
+      codeBuffer: '',
+      eventLog: [],
+      buzzerMs: 120,
+      auth: { role: '-', user: '-', canEditSecurity: false }
+    };
 
-  function syncDisplay(){
-    setText("deviceScreenMain", codeBuffer || "---");
-    setText("deviceScreenSub", codeBuffer ? "Kod gotowy do wyslania" : "Gotowe");
-    if(el("manualCode")) el("manualCode").value = codeBuffer;
-  }
+    const $ = (id) => document.getElementById(id);
 
-  async function postPlain(url, payload){
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {"Content-Type":"text/plain;charset=utf-8"},
-      body: payload
-    });
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    return res.json();
-  }
-
-  window.appendDigit = function(d){
-    codeBuffer += d;
-    syncDisplay();
-    setText("codeStatus", "Budowanie kodu...");
-  };
-
-  window.clearCode = function(){
-    codeBuffer = "";
-    syncDisplay();
-    setText("codeStatus", "Kod wyczyszczony.");
-  };
-
-  window.submitCode = async function(){
-    if(!codeBuffer){
-      setText("codeStatus", "Brak kodu do wyslania.");
-      return;
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
     }
-    try{
-      await postPlain("/api/keypad/code", codeBuffer);
-      setText("codeStatus", "Kod wyslany: " + codeBuffer);
-      setText("deviceScreenHint", "Kod wyslany do urzadzenia.");
-    }catch(err){
-      setText("codeStatus", "Blad: " + err.message);
+
+    function valueOrDash(value) {
+      return value === undefined || value === null || value === '' ? '-' : String(value);
     }
-  };
 
-  window.submitManualCode = async function(){
-    const value = (el("manualCode")?.value || "").trim();
-    codeBuffer = value;
-    syncDisplay();
-    await window.submitCode();
-  };
-
-  window.sendVirtualKey = async function(key){
-    try{
-      await postPlain("/api/keypad/key", key);
-      setText("codeStatus", "Wyslano klawisz: " + key);
-      setText("deviceScreenTitle", "KLAWISZ");
-      setText("deviceScreenMain", key);
-      setText("deviceScreenSub", "Wyslano z webservera");
-      setText("deviceScreenHint", "Mozesz dalej obslugiwac urzadzenie.");
-    }catch(err){
-      setText("codeStatus", "Blad: " + err.message);
+    function boolText(value) {
+      return value ? 'ON' : 'OFF';
     }
-  };
 
-  window.fireOutput = async function(url){
-    try{
-      const res = await fetch(url, {method:"POST"});
-      if(!res.ok) throw new Error("HTTP " + res.status);
-      await loadRuntime();
-      setText("codeStatus", "Komenda wykonana.");
-    } catch(err){
-      setText("codeStatus", "Blad: " + err.message);
+    function nowTime() {
+      return new Date().toLocaleTimeString('pl-PL');
     }
-  };
 
-  async function loadRuntime(){
-    try{
-      const data = await fetch("/api/runtime", {cache:"no-store"}).then(r => r.json());
-      setText("liveIp", data.ip || "-");
-      setText("rfidLast", data.rfidLast || "-");
-      setText("keyLast", data.keyLast || "-");
-      setText("scaleLast", data.scaleTcpLast || "-");
-      setText("out1State", data.out1 ? "ON" : "OFF");
-      setText("out2State", data.out2 ? "ON" : "OFF");
-    } catch(err){
-      setText("codeStatus", "Blad runtime: " + err.message);
+    function showToast(message, ms = 2200) {
+      const toast = $('toast');
+      toast.textContent = message;
+      toast.style.display = 'block';
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => toast.style.display = 'none', ms);
     }
-  }
 
-  syncDisplay();
-  loadRuntime();
-  setInterval(loadRuntime, 3000);
-})();
-</script>
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(url + ' -> ' + res.status);
+      return res.json();
+    }
+
+    async function fetchText(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(url + ' -> ' + res.status);
+      return res.text();
+    }
+
+    async function postPlain(url, payload) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: payload
+      });
+      if (!res.ok) throw new Error(url + ' -> ' + res.status);
+      const text = await res.text();
+      try { return JSON.parse(text); } catch (_) { return { ok: true, raw: text }; }
+    }
+
+    function addEvent(source, text) {
+      state.eventLog.unshift({ time: nowTime(), source, text });
+      state.eventLog = state.eventLog.slice(0, 8);
+      renderControlEvents();
+    }
+
+    async function refreshAll() {
+      $('mainRoot').classList.add('loading');
+      try {
+        const [device, config, runtime, statusText] = await Promise.all([
+          fetchJson('/api/device/info'),
+          fetchJson('/api/config'),
+          fetchJson('/api/runtime'),
+          fetchText('/status')
+        ]);
+        state.device = device;
+        state.config = config;
+        state.runtime = runtime;
+        state.statusText = statusText;
+        state.auth.role = device.currentRole || '-';
+        state.auth.user = config?.security?.serviceUser || '-';
+        state.auth.canEditSecurity = !!config?.permissions?.canEditSecurity;
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd odświeżania danych');
+      } finally {
+        $('mainRoot').classList.remove('loading');
+      }
+    }
+
+    function renderTop() {
+      $('pillDevice').textContent = valueOrDash(state.device?.deviceName);
+      $('pillIp').textContent = valueOrDash(state.device?.ip);
+      $('pillFw').textContent = valueOrDash(state.device?.fw);
+      $('pillMac').textContent = valueOrDash(state.device?.mac);
+      $('roleText').textContent = valueOrDash(state.device?.currentRole);
+      $('userText').textContent = state.auth.canEditSecurity
+        ? valueOrDash(state.config?.security?.adminUser || state.config?.security?.serviceUser)
+        : valueOrDash(state.config?.security?.serviceUser);
+      $('securityEditText').textContent = state.auth.canEditSecurity ? 'TAK' : 'NIE';
+    }
+
+    function renderDashboard() {
+      const runtime = state.runtime || {};
+      const config = state.config || {};
+      const cards = [
+        {
+          label: 'Sieć',
+          value: valueOrDash(runtime.ip || state.device?.ip),
+          sub: 'Tryb: ' + valueOrDash(config.network?.mode).toUpperCase(),
+          tone: 'ok'
+        },
+        {
+          label: 'TCP komendy',
+          value: runtime.cmdTcpConnected ? 'POŁĄCZONY' : 'BRAK',
+          sub: valueOrDash(runtime.cmdTcpLast),
+          tone: runtime.cmdTcpConnected ? 'ok' : 'warn'
+        },
+        {
+          label: 'TCP wagi',
+          value: runtime.scaleTcpConnected ? 'POŁĄCZONY' : (config.scaleTcp?.enabled ? 'BRAK' : 'OFF'),
+          sub: valueOrDash(runtime.scaleTcpLast),
+          tone: runtime.scaleTcpConnected ? 'ok' : (config.scaleTcp?.enabled ? 'warn' : 'info')
+        },
+        {
+          label: 'Wejścia',
+          value: 'RFID ' + boolText(runtime.rfidEnabled) + ' / KEY ' + boolText(runtime.keypadEnabled),
+          sub: 'QR: ' + valueOrDash(runtime.qrLast),
+          tone: 'info'
+        }
+      ];
+
+      $('dashboard').innerHTML = cards.map(card => `
+        <article class="card">
+          <div class="card-head" style="margin-bottom:10px;">
+            <div class="metric-name">${escapeHtml(card.label)}</div>
+            <span class="pill-badge ${card.tone}">${card.tone === 'ok' ? 'OK' : card.tone === 'warn' ? 'UWAGA' : 'INFO'}</span>
+          </div>
+          <div class="metric-value">${escapeHtml(card.value)}</div>
+          <div class="metric-sub">${escapeHtml(card.sub)}</div>
+        </article>
+      `).join('');
+    }
+
+    function deriveScreenState() {
+      const runtime = state.runtime || {};
+      if (state.codeBuffer) {
+        return {
+          top: 'KOD Z WEBPANELU',
+          main: state.codeBuffer,
+          bottom: 'Wciśnij OK, aby wysłać do urządzenia.'
+        };
+      }
+      if (runtime.scaleTcpLast && runtime.scaleTcpLast !== '-') {
+        return {
+          top: runtime.cmdTcpConnected ? 'POŁĄCZENIE AKTYWNE' : 'TRYB LOKALNY',
+          main: runtime.scaleTcpLast,
+          bottom: runtime.rfidLast ? ('Ostatnia karta: ' + runtime.rfidLast) : 'Oczekiwanie na kartę RFID'
+        };
+      }
+      return {
+        top: runtime.cmdTcpConnected ? 'TERMINAL GOTOWY' : 'BRAK SESJI TCP',
+        main: runtime.webCodeLast || runtime.keyLast || '---',
+        bottom: runtime.lastInbound || 'Zbliż kartę RFID lub wpisz kod.'
+      };
+    }
+
+    function renderTerminal() {
+      const runtime = state.runtime || {};
+      const screen = deriveScreenState();
+      $('screenTop').textContent = screen.top;
+      $('screenMain').textContent = screen.main;
+      $('screenBottom').textContent = screen.bottom;
+      $('commandMirror').value = state.codeBuffer || '';
+      $('manualCode').value = state.codeBuffer || $('manualCode').value || '';
+      $('miniRfid').textContent = valueOrDash(runtime.rfidLast);
+      $('miniQr').textContent = valueOrDash(runtime.qrLast);
+      $('miniKey').textContent = valueOrDash(runtime.keyLast);
+      $('miniWebCode').textContent = valueOrDash(runtime.webCodeLast);
+      $('miniOut1').textContent = boolText(runtime.out1);
+      $('miniOut2').textContent = boolText(runtime.out2);
+    }
+
+    function fillForm(id, value) {
+      const el = $(id);
+      if (el) el.value = value;
+    }
+
+    function renderConfig() {
+      const cfg = state.config || {};
+      fillForm('cfg_deviceName', cfg.network?.deviceName || 'ct100-terminal');
+      fillForm('cfg_networkMode', cfg.network?.mode || 'dhcp');
+      fillForm('cfg_ip', cfg.network?.ip || '192.168.1.112');
+      fillForm('cfg_gateway', cfg.network?.gateway || '192.168.1.1');
+      fillForm('cfg_subnet', cfg.network?.subnet || '255.255.255.0');
+      fillForm('cfg_dns1', cfg.network?.dns1 || '8.8.8.8');
+      fillForm('cfg_dns2', cfg.network?.dns2 || '1.1.1.1');
+      fillForm('cfg_serviceUser', cfg.security?.serviceUser || 'service');
+      fillForm('cfg_servicePassword', '');
+      fillForm('cfg_adminUser', cfg.security?.adminUser || 'admin');
+      fillForm('cfg_adminPassword', '');
+      fillForm('cfg_otaPassword', '');
+
+      fillForm('cfg_tcpMode', cfg.tcp?.mode || 'client');
+      fillForm('cfg_serverIp', cfg.tcp?.serverIp || '192.168.1.10');
+      fillForm('cfg_serverPort', cfg.tcp?.serverPort || 7000);
+      fillForm('cfg_listenPort', cfg.tcp?.listenPort || 7000);
+      fillForm('cfg_scaleEnabled', String(cfg.scaleTcp?.enabled ?? true));
+      fillForm('cfg_scaleMode', cfg.scaleTcp?.mode || 'client');
+      fillForm('cfg_scaleServerIp', cfg.scaleTcp?.serverIp || '192.168.1.20');
+      fillForm('cfg_scaleServerPort', cfg.scaleTcp?.serverPort || 4001);
+      fillForm('cfg_scaleListenPort', cfg.scaleTcp?.listenPort || 4001);
+      fillForm('cfg_rfidEnabled', String(cfg.rfid?.enabled ?? true));
+      fillForm('cfg_baudRate', cfg.rfid?.baudRate || 9600);
+      fillForm('cfg_encoding', cfg.rfid?.encoding || 'hex');
+
+      fillForm('cfg_displayEnabled', String(cfg.display?.enabled ?? true));
+      fillForm('cfg_contrast', cfg.display?.contrast || 180);
+      fillForm('cfg_keypadEnabled', String(cfg.keypad?.enabled ?? true));
+      fillForm('cfg_pcf8574Address', cfg.keypad?.pcf8574Address || 32);
+      fillForm('cfg_discoveryEnabled', String(cfg.discovery?.enabled ?? true));
+      fillForm('cfg_udpPort', cfg.discovery?.udpPort || 40404);
+
+      const canEditSecurity = !!cfg.permissions?.canEditSecurity;
+      ['cfg_adminUser', 'cfg_adminPassword', 'cfg_serviceUser', 'cfg_servicePassword', 'cfg_otaPassword'].forEach(id => {
+        $(id).disabled = !canEditSecurity;
+      });
+    }
+
+    function rowItem(label, value) {
+      return `<div class="row-item"><div class="l">${escapeHtml(label)}</div><div class="r">${escapeHtml(valueOrDash(value))}</div></div>`;
+    }
+
+    function renderControlEvents() {
+      const rows = state.eventLog.length ? state.eventLog : [
+        { time: nowTime(), source: 'SYSTEM', text: 'Brak lokalnych akcji w tej sesji.' }
+      ];
+      $('controlEvents').innerHTML = rows.map(row => `
+        <tr>
+          <td class="mono">${escapeHtml(row.time)}</td>
+          <td><strong>${escapeHtml(row.source)}</strong></td>
+          <td>${escapeHtml(row.text)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderControlSide() {
+      const runtime = state.runtime || {};
+      $('ioStateList').innerHTML = [
+        ['OUT1', boolText(runtime.out1)],
+        ['OUT2', boolText(runtime.out2)],
+        ['Buzzer', boolText(runtime.buzzer)],
+        ['Ostatni outbound', runtime.lastOutbound],
+        ['Ostatni inbound', runtime.lastInbound],
+        ['Uptime [ms]', runtime.uptimeMs]
+      ].map(([k, v]) => rowItem(k, v)).join('');
+    }
+
+    function renderDiagnostics() {
+      const runtime = state.runtime || {};
+      const cfg = state.config || {};
+      const stack = [
+        {
+          name: 'Kanał komend',
+          status: runtime.cmdTcpConnected ? 'CONNECTED' : 'DISCONNECTED',
+          tone: runtime.cmdTcpConnected ? 'ok' : 'warn',
+          detail: 'Tryb: ' + valueOrDash(cfg.tcp?.mode).toUpperCase() + ' · Ostatnia wiadomość: ' + valueOrDash(runtime.cmdTcpLast)
+        },
+        {
+          name: 'Kanał wagi',
+          status: cfg.scaleTcp?.enabled ? (runtime.scaleTcpConnected ? 'CONNECTED' : 'WAITING') : 'OFF',
+          tone: cfg.scaleTcp?.enabled ? (runtime.scaleTcpConnected ? 'ok' : 'warn') : 'dark',
+          detail: 'Tryb: ' + valueOrDash(cfg.scaleTcp?.mode).toUpperCase() + ' · Odczyt: ' + valueOrDash(runtime.scaleTcpLast)
+        },
+        {
+          name: 'RFID / keypad',
+          status: boolText(runtime.rfidEnabled) + ' / ' + boolText(runtime.keypadEnabled),
+          tone: 'info',
+          detail: 'RFID: ' + valueOrDash(runtime.rfidLast) + ' · Key: ' + valueOrDash(runtime.keyLast)
+        },
+        {
+          name: 'Discovery / LCD',
+          status: boolText(runtime.discoveryEnabled) + ' / ' + boolText(runtime.displayEnabled),
+          tone: 'info',
+          detail: 'Discovery port: ' + valueOrDash(state.device?.discoveryPort) + ' · Kontrast: ' + valueOrDash(cfg.display?.contrast)
+        }
+      ];
+
+      $('tcpStack').innerHTML = stack.map(item => `
+        <div class="tcp-item">
+          <div class="tcp-top">
+            <div class="tcp-name">${escapeHtml(item.name)}</div>
+            <span class="tiny-badge ${item.tone}">${escapeHtml(item.status)}</span>
+          </div>
+          <div class="tcp-desc">${escapeHtml(item.detail)}</div>
+        </div>
+      `).join('');
+
+      $('diagQuickList').innerHTML = [
+        ['IP runtime', runtime.ip],
+        ['MAC', state.device?.mac],
+        ['Last QR', runtime.qrLast],
+        ['Last web code', runtime.webCodeLast],
+        ['TCP listen', state.device?.tcpListenPort],
+        ['Scale listen', state.device?.scaleListenPort]
+      ].map(([k, v]) => rowItem(k, v)).join('');
+    }
+
+    function renderSystem() {
+      $('statusText').value = state.statusText || '';
+      $('systemFacts').innerHTML = [
+        ['Rola', state.device?.currentRole],
+        ['Firmware', state.device?.fw],
+        ['Device ID', state.device?.deviceId],
+        ['Nazwa urządzenia', state.device?.deviceName],
+        ['Security edit', state.config?.permissions?.canEditSecurity ? 'TAK' : 'NIE'],
+        ['Discovery port', state.device?.discoveryPort]
+      ].map(([k, v]) => rowItem(k, v)).join('');
+    }
+
+    function renderAll() {
+      renderTop();
+      renderDashboard();
+      renderTerminal();
+      renderConfig();
+      renderControlEvents();
+      renderControlSide();
+      renderDiagnostics();
+      renderSystem();
+    }
+
+    function buildFlatPayload() {
+      const payload = {
+        deviceName: $('cfg_deviceName').value.trim(),
+        mode: $('cfg_networkMode').value,
+        ip: $('cfg_ip').value.trim(),
+        gateway: $('cfg_gateway').value.trim(),
+        subnet: $('cfg_subnet').value.trim(),
+        dns1: $('cfg_dns1').value.trim(),
+        dns2: $('cfg_dns2').value.trim(),
+
+        tcpMode: $('cfg_tcpMode').value,
+        serverIp: $('cfg_serverIp').value.trim(),
+        serverPort: Number($('cfg_serverPort').value || 0),
+        listenPort: Number($('cfg_listenPort').value || 0),
+
+        scaleEnabled: $('cfg_scaleEnabled').value === 'true',
+        scaleMode: $('cfg_scaleMode').value,
+        scaleServerIp: $('cfg_scaleServerIp').value.trim(),
+        scaleServerPort: Number($('cfg_scaleServerPort').value || 0),
+        scaleListenPort: Number($('cfg_scaleListenPort').value || 0),
+
+        rfidEnabled: $('cfg_rfidEnabled').value === 'true',
+        baudRate: Number($('cfg_baudRate').value || 0),
+        encoding: $('cfg_encoding').value,
+
+        displayEnabled: $('cfg_displayEnabled').value === 'true',
+        contrast: Number($('cfg_contrast').value || 0),
+        keypadEnabled: $('cfg_keypadEnabled').value === 'true',
+        pcf8574Address: Number($('cfg_pcf8574Address').value || 0),
+        discoveryEnabled: $('cfg_discoveryEnabled').value === 'true',
+        udpPort: Number($('cfg_udpPort').value || 0)
+      };
+
+      if (state.config?.permissions?.canEditSecurity) {
+        if ($('cfg_adminUser').value.trim()) payload.adminUser = $('cfg_adminUser').value.trim();
+        if ($('cfg_adminPassword').value.trim()) payload.adminPassword = $('cfg_adminPassword').value.trim();
+        if ($('cfg_serviceUser').value.trim()) payload.serviceUser = $('cfg_serviceUser').value.trim();
+        if ($('cfg_servicePassword').value.trim()) payload.servicePassword = $('cfg_servicePassword').value.trim();
+        if ($('cfg_otaPassword').value.trim()) payload.otaPassword = $('cfg_otaPassword').value.trim();
+      }
+      return payload;
+    }
+
+    async function saveConfig() {
+      try {
+        const payload = buildFlatPayload();
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        addEvent('CONFIG', 'Zapis konfiguracji przez /api/config');
+        showToast('Konfiguracja zapisana. Firmware wymaga restartu, aby wczytać nowe ustawienia.');
+        await refreshAll();
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd zapisu konfiguracji');
+      }
+    }
+
+    async function sendOutput(url, label) {
+      try {
+        const res = await fetch(url, { method: 'POST' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        addEvent('OUTPUT', label);
+        await refreshRuntimeOnly();
+        showToast('Wysłano: ' + label);
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd wykonania komendy');
+      }
+    }
+
+    async function refreshRuntimeOnly() {
+      try {
+        const runtime = await fetchJson('/api/runtime');
+        state.runtime = runtime;
+        renderTerminal();
+        renderDashboard();
+        renderControlSide();
+        renderDiagnostics();
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    async function loadStatusOnly() {
+      try {
+        state.statusText = await fetchText('/status');
+        renderSystem();
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd pobierania statusu TXT');
+      }
+    }
+
+    async function rebootDevice() {
+      if (!confirm('Uruchomić urządzenie ponownie?')) return;
+      try {
+        const res = await fetch('/reboot', { method: 'POST' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        addEvent('SYSTEM', 'Restart urządzenia');
+        showToast('Wysłano restart');
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd restartu');
+      }
+    }
+
+    function appendDigit(digit) {
+      state.codeBuffer += digit;
+      $('manualCode').value = state.codeBuffer;
+      renderTerminal();
+    }
+
+    function clearCodeBuffer() {
+      state.codeBuffer = '';
+      $('manualCode').value = '';
+      renderTerminal();
+      showToast('Bufor kodu wyczyszczony');
+    }
+
+    async function submitCodeBuffer() {
+      const code = state.codeBuffer.trim();
+      if (!code) {
+        showToast('Brak kodu do wysłania');
+        return;
+      }
+      try {
+        await postPlain('/api/keypad/code', code);
+        addEvent('KEYPAD', 'Kod wysłany: ' + code);
+        showToast('Kod wysłany');
+        state.codeBuffer = '';
+        await refreshRuntimeOnly();
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd wysyłki kodu');
+      }
+    }
+
+    async function sendVirtualKey(key) {
+      try {
+        await postPlain('/api/keypad/key', key);
+        addEvent('KEYPAD', 'Klawisz wysłany: ' + key);
+        showToast('Wysłano klawisz ' + key);
+        await refreshRuntimeOnly();
+      } catch (error) {
+        console.error(error);
+        showToast('Błąd wysyłki klawisza');
+      }
+    }
+
+    function wireSegment() {
+      document.querySelectorAll('.segment button').forEach(button => {
+        button.addEventListener('click', () => {
+          document.querySelectorAll('.segment button').forEach(node => node.classList.remove('active'));
+          button.classList.add('active');
+          state.buzzerMs = Number(button.dataset.ms || 120);
+        });
+      });
+    }
+
+    function wireNav() {
+      document.querySelectorAll('.nav a').forEach(link => {
+        link.addEventListener('click', () => {
+          document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+          link.classList.add('active');
+          $('appRoot').classList.remove('nav-open');
+        });
+      });
+    }
+
+    function wireActions() {
+      $('mobileToggle').addEventListener('click', () => $('appRoot').classList.toggle('nav-open'));
+      $('refreshBtn').addEventListener('click', refreshAll);
+      $('saveBtn').addEventListener('click', saveConfig);
+      $('saveNetworkSecurityBtn').addEventListener('click', saveConfig);
+      $('saveAllBtn').addEventListener('click', saveConfig);
+      $('restartAfterSaveBtn').addEventListener('click', async () => {
+        await saveConfig();
+        showToast('Konfiguracja zapisana. Teraz wykonaj restart urządzenia.');
+      });
+      $('reloadConfigBtn').addEventListener('click', refreshAll);
+
+      $('sendCodeBtn').addEventListener('click', async () => {
+        state.codeBuffer = $('manualCode').value.trim();
+        await submitCodeBuffer();
+      });
+      $('clearCodeBtn').addEventListener('click', clearCodeBuffer);
+      $('sendHashBtn').addEventListener('click', () => sendVirtualKey('#'));
+      $('sendStarBtn').addEventListener('click', () => sendVirtualKey('*'));
+
+      $('out1OnBtn').addEventListener('click', () => sendOutput('/api/output/out1/on', 'OUT1 ON'));
+      $('out1OffBtn').addEventListener('click', () => sendOutput('/api/output/out1/off', 'OUT1 OFF'));
+      $('out2OnBtn').addEventListener('click', () => sendOutput('/api/output/out2/on', 'OUT2 ON'));
+      $('out2OffBtn').addEventListener('click', () => sendOutput('/api/output/out2/off', 'OUT2 OFF'));
+      $('buzzerBtn').addEventListener('click', () => sendOutput('/api/output/buzzer?ms=' + state.buzzerMs, 'BUZZER ' + state.buzzerMs + ' ms'));
+
+      $('statusBtn').addEventListener('click', () => window.open('/status', '_blank'));
+      $('logsBtn').addEventListener('click', () => window.open('/logs', '_blank'));
+      $('firmwareBtn').addEventListener('click', () => window.open('/firmware', '_blank'));
+      $('restartBtn').addEventListener('click', rebootDevice);
+      $('reloadStatusBtn').addEventListener('click', loadStatusOnly);
+      $('openLogsBtn').addEventListener('click', () => window.open('/logs', '_blank'));
+      $('goFirmwareBtn').addEventListener('click', () => window.open('/firmware', '_blank'));
+      $('goStatusBtn').addEventListener('click', () => window.open('/status', '_blank'));
+      $('goLogsBtn').addEventListener('click', () => window.open('/logs', '_blank'));
+      $('systemRestartBtn').addEventListener('click', rebootDevice);
+    }
+
+    wireSegment();
+    wireNav();
+    wireActions();
+    refreshAll();
+    setInterval(refreshRuntimeOnly, 3000);
+    window.appendDigit = appendDigit;
+    window.clearCodeBuffer = clearCodeBuffer;
+    window.submitCodeBuffer = submitCodeBuffer;
+    window.sendVirtualKey = sendVirtualKey;
+  </script>
 </body>
 </html>
-)HTML";
 
-    html.replace("%CURRENT_ROLE%", currentRoleName());
-    html.replace("%CURRENT_USER%", jsonEscape(currentUserName()));
-    html.replace("%DEVICE_NAME%", jsonEscape(cfg.network.deviceName));
+)HTML_WEBCFG";
     return html;
 }
 
 String WebConfigServer::parseStringField(const String& body, const String& key, const String& fallback) {
-    const String needle = "\"" + key + "\"";
+    const String needle = """ + key + """;
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
 
@@ -731,7 +2069,7 @@ String WebConfigServer::parseStringField(const String& body, const String& key, 
 }
 
 bool WebConfigServer::parseBoolField(const String& body, const String& key, bool fallback) {
-    const String needle = "\"" + key + "\"";
+    const String needle = """ + key + """;
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
 
@@ -747,7 +2085,7 @@ bool WebConfigServer::parseBoolField(const String& body, const String& key, bool
 }
 
 uint16_t WebConfigServer::parseUInt16Field(const String& body, const String& key, uint16_t fallback) {
-    const String needle = "\"" + key + "\"";
+    const String needle = """ + key + """;
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
 
@@ -765,7 +2103,7 @@ uint16_t WebConfigServer::parseUInt16Field(const String& body, const String& key
 }
 
 uint32_t WebConfigServer::parseUInt32Field(const String& body, const String& key, uint32_t fallback) {
-    const String needle = "\"" + key + "\"";
+    const String needle = """ + key + """;
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
 
