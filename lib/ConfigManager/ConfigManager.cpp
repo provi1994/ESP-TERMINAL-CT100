@@ -1,5 +1,9 @@
 #include "ConfigManager.h"
 
+/*
+ * Jeden namespace Preferences dla całego terminala.
+ * Dzięki temu po aktualizacji firmware zachowujemy ustawienia urządzenia.
+ */
 bool ConfigManager::begin() {
     return prefs_.begin("ct100", false);
 }
@@ -24,6 +28,10 @@ DeviceConfig ConfigManager::load() {
     config_.scaleTcp.serverPort = prefs_.getUShort("sc_sport", config_.scaleTcp.serverPort);
     config_.scaleTcp.listenPort = prefs_.getUShort("sc_lport", config_.scaleTcp.listenPort);
 
+    /*
+     * Zachowujemy kompatybilność wsteczną:
+     * stare klucze web_user/web_pass nadal są czytane jako fallback.
+     */
     config_.security.adminUser = prefs_.getString("adm_user", prefs_.getString("web_user", config_.security.adminUser));
     config_.security.adminPassword = prefs_.getString("adm_pass", prefs_.getString("web_pass", config_.security.adminPassword));
     config_.security.serviceUser = prefs_.getString("svc_user", config_.security.serviceUser);
@@ -36,6 +44,45 @@ DeviceConfig ConfigManager::load() {
 
     config_.display.enabled = prefs_.getBool("disp_en", config_.display.enabled);
     config_.display.contrast = prefs_.getUChar("disp_ctr", config_.display.contrast);
+
+    config_.display.flow.enabled = prefs_.getBool("flow_en", config_.display.flow.enabled);
+    config_.display.flow.remoteTriggerEnabled = prefs_.getBool("flow_rmt", config_.display.flow.remoteTriggerEnabled);
+    config_.display.flow.weightTriggerEnabled = prefs_.getBool("flow_wgh", config_.display.flow.weightTriggerEnabled);
+    config_.display.flow.weightThresholdKg = prefs_.getUShort("flow_thr", config_.display.flow.weightThresholdKg);
+    config_.display.flow.summaryScreenMs = prefs_.getUShort("flow_sum", config_.display.flow.summaryScreenMs);
+    config_.display.flow.resultScreenMs = prefs_.getUShort("flow_res", config_.display.flow.resultScreenMs);
+
+    config_.display.screen1.enabled = prefs_.getBool("sc1_en", config_.display.screen1.enabled);
+    config_.display.screen1.order = prefs_.getUChar("sc1_ord", config_.display.screen1.order);
+    config_.display.screen1.name = prefs_.getString("sc1_nm", config_.display.screen1.name);
+    config_.display.screen1.title = prefs_.getString("sc1_ti", config_.display.screen1.title);
+    config_.display.screen1.line1 = prefs_.getString("sc1_l1", config_.display.screen1.line1);
+    config_.display.screen1.line2 = prefs_.getString("sc1_l2", config_.display.screen1.line2);
+    config_.display.screen1.hint = prefs_.getString("sc1_hi", config_.display.screen1.hint);
+
+    config_.display.screen2.enabled = prefs_.getBool("sc2_en", config_.display.screen2.enabled);
+    config_.display.screen2.order = prefs_.getUChar("sc2_ord", config_.display.screen2.order);
+    config_.display.screen2.name = prefs_.getString("sc2_nm", config_.display.screen2.name);
+    config_.display.screen2.title = prefs_.getString("sc2_ti", config_.display.screen2.title);
+    config_.display.screen2.line1 = prefs_.getString("sc2_l1", config_.display.screen2.line1);
+    config_.display.screen2.line2 = prefs_.getString("sc2_l2", config_.display.screen2.line2);
+    config_.display.screen2.hint = prefs_.getString("sc2_hi", config_.display.screen2.hint);
+
+    config_.display.screen3.enabled = prefs_.getBool("sc3_en", config_.display.screen3.enabled);
+    config_.display.screen3.order = prefs_.getUChar("sc3_ord", config_.display.screen3.order);
+    config_.display.screen3.name = prefs_.getString("sc3_nm", config_.display.screen3.name);
+    config_.display.screen3.title = prefs_.getString("sc3_ti", config_.display.screen3.title);
+    config_.display.screen3.line1 = prefs_.getString("sc3_l1", config_.display.screen3.line1);
+    config_.display.screen3.line2 = prefs_.getString("sc3_l2", config_.display.screen3.line2);
+    config_.display.screen3.hint = prefs_.getString("sc3_hi", config_.display.screen3.hint);
+
+    config_.display.screen4.enabled = prefs_.getBool("sc4_en", config_.display.screen4.enabled);
+    config_.display.screen4.order = prefs_.getUChar("sc4_ord", config_.display.screen4.order);
+    config_.display.screen4.name = prefs_.getString("sc4_nm", config_.display.screen4.name);
+    config_.display.screen4.title = prefs_.getString("sc4_ti", config_.display.screen4.title);
+    config_.display.screen4.line1 = prefs_.getString("sc4_l1", config_.display.screen4.line1);
+    config_.display.screen4.line2 = prefs_.getString("sc4_l2", config_.display.screen4.line2);
+    config_.display.screen4.hint = prefs_.getString("sc4_hi", config_.display.screen4.hint);
 
     config_.keypad.enabled = prefs_.getBool("key_en", config_.keypad.enabled);
     config_.keypad.pcf8574Address = prefs_.getUChar("key_addr", config_.keypad.pcf8574Address);
@@ -82,6 +129,45 @@ bool ConfigManager::save(const DeviceConfig& config) {
 
     prefs_.putBool("disp_en", config.display.enabled);
     prefs_.putUChar("disp_ctr", config.display.contrast);
+
+    prefs_.putBool("flow_en", config.display.flow.enabled);
+    prefs_.putBool("flow_rmt", config.display.flow.remoteTriggerEnabled);
+    prefs_.putBool("flow_wgh", config.display.flow.weightTriggerEnabled);
+    prefs_.putUShort("flow_thr", config.display.flow.weightThresholdKg);
+    prefs_.putUShort("flow_sum", config.display.flow.summaryScreenMs);
+    prefs_.putUShort("flow_res", config.display.flow.resultScreenMs);
+
+    prefs_.putBool("sc1_en", config.display.screen1.enabled);
+    prefs_.putUChar("sc1_ord", config.display.screen1.order);
+    prefs_.putString("sc1_nm", config.display.screen1.name);
+    prefs_.putString("sc1_ti", config.display.screen1.title);
+    prefs_.putString("sc1_l1", config.display.screen1.line1);
+    prefs_.putString("sc1_l2", config.display.screen1.line2);
+    prefs_.putString("sc1_hi", config.display.screen1.hint);
+
+    prefs_.putBool("sc2_en", config.display.screen2.enabled);
+    prefs_.putUChar("sc2_ord", config.display.screen2.order);
+    prefs_.putString("sc2_nm", config.display.screen2.name);
+    prefs_.putString("sc2_ti", config.display.screen2.title);
+    prefs_.putString("sc2_l1", config.display.screen2.line1);
+    prefs_.putString("sc2_l2", config.display.screen2.line2);
+    prefs_.putString("sc2_hi", config.display.screen2.hint);
+
+    prefs_.putBool("sc3_en", config.display.screen3.enabled);
+    prefs_.putUChar("sc3_ord", config.display.screen3.order);
+    prefs_.putString("sc3_nm", config.display.screen3.name);
+    prefs_.putString("sc3_ti", config.display.screen3.title);
+    prefs_.putString("sc3_l1", config.display.screen3.line1);
+    prefs_.putString("sc3_l2", config.display.screen3.line2);
+    prefs_.putString("sc3_hi", config.display.screen3.hint);
+
+    prefs_.putBool("sc4_en", config.display.screen4.enabled);
+    prefs_.putUChar("sc4_ord", config.display.screen4.order);
+    prefs_.putString("sc4_nm", config.display.screen4.name);
+    prefs_.putString("sc4_ti", config.display.screen4.title);
+    prefs_.putString("sc4_l1", config.display.screen4.line1);
+    prefs_.putString("sc4_l2", config.display.screen4.line2);
+    prefs_.putString("sc4_hi", config.display.screen4.hint);
 
     prefs_.putBool("key_en", config.keypad.enabled);
     prefs_.putUChar("key_addr", config.keypad.pcf8574Address);

@@ -2,6 +2,15 @@
 #include <Preferences.h>
 #include "AppTypes.h"
 
+/*
+ * ConfigManager:
+ * - ładuje konfigurację z NVS,
+ * - zapisuje konfigurację do NVS,
+ * - tłumaczy enumy na tekst używany w webpanelu.
+ *
+ * Zależało nam na prostym modelu bez zewnętrznego JSON parsera,
+ * dlatego wartości są zapisane jako pojedyncze klucze Preferences.
+ */
 class ConfigManager {
 public:
     bool begin();

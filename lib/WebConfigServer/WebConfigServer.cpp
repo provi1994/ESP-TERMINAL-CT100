@@ -18,6 +18,7 @@ void WebConfigServer::begin(const DeviceConfig& config) {
     server_.on("/logs", HTTP_GET, [this]() { handleLogs(); });
     server_.on("/status", HTTP_GET, [this]() { handleStatus(); });
     server_.on("/reboot", HTTP_POST, [this]() { handleReboot(); });
+    server_.on("/logout", HTTP_GET, [this]() { handleLogout(); });
 
     server_.on("/api/device/info", HTTP_GET, [this]() { handleApiDeviceInfo(); });
     server_.on("/api/config", HTTP_GET, [this]() { handleApiConfigGet(); });
@@ -30,6 +31,9 @@ void WebConfigServer::begin(const DeviceConfig& config) {
     server_.on("/api/output/out2/off", HTTP_POST, [this]() { handleApiOutputOut2Off(); });
     server_.on("/api/output/buzzer", HTTP_POST, [this]() { handleApiOutputBuzzer(); });
 
+    server_.on("/api/keypad/key", HTTP_POST, [this]() { handleApiVirtualKey(); });
+    server_.on("/api/keypad/code", HTTP_POST, [this]() { handleApiVirtualCode(); });
+
     server_.on("/firmware", HTTP_GET, [this]() { handleFirmwarePage(); });
     server_.on(
         "/firmware/upload",
@@ -40,7 +44,7 @@ void WebConfigServer::begin(const DeviceConfig& config) {
             server_.send(
                 200,
                 "text/html; charset=utf-8",
-                ok ? "<h3>Firmware upload OK</h3><p>Urządzenie uruchomi się ponownie.</p><p><a href='/'>Powrot</a></p>"
+                ok ? "<h3>Firmware upload OK</h3><p>Urzadzenie uruchomi sie ponownie.</p><p><a href='/'>Powrot</a></p>"
                    : "<h3>Firmware upload blad</h3><p>Sprawdz logi urzadzenia i sprobuj ponownie.</p><p><a href='/firmware'>Powrot</a></p>");
             if (ok) {
                 delay(800);
@@ -67,6 +71,14 @@ void WebConfigServer::onReboot(std::function<void()> callback) {
 
 void WebConfigServer::onOutputCommand(std::function<void(const String&)> callback) {
     onOutputCommand_ = callback;
+}
+
+void WebConfigServer::onVirtualKey(std::function<void(const String&)> callback) {
+    onVirtualKey_ = callback;
+}
+
+void WebConfigServer::onVirtualCode(std::function<void(const String&)> callback) {
+    onVirtualCode_ = callback;
 }
 
 void WebConfigServer::setConfigProvider(std::function<DeviceConfig()> provider) {
@@ -147,7 +159,7 @@ void WebConfigServer::handleLogs() {
             "a{color:#0077C0}pre{white-space:pre-wrap;background:#0f172a;color:#dbe4ee;padding:16px;border-radius:16px;overflow:auto}"
             ".top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}.btn{background:#0077C0;color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none}</style>";
     html += "</head><body>";
-    html += "<div class='top'><a class='btn' href='/'>Panel</a><a class='btn' href='/status'>Status TXT</a></div>";
+    html += "<div class='top'><a class='btn' href='/'>Panel</a><a class='btn' href='/status'>Status TXT</a><a class='btn' href='/logout'>Wyloguj</a></div>";
     html += "<h1>Logi i diagnostyka</h1><pre>";
     html += logger_.toHtml();
     html += "</pre></body></html>";
@@ -169,6 +181,20 @@ void WebConfigServer::handleReboot() {
         "<h3>Restart</h3><p>Urzadzenie uruchamia sie ponownie.</p><p><a href='/'>Powrot</a></p>");
     delay(300);
     if (onReboot_) onReboot_();
+}
+
+void WebConfigServer::handleLogout() {
+    server_.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    server_.sendHeader("Pragma", "no-cache");
+    server_.sendHeader("Expires", "0");
+    server_.sendHeader("WWW-Authenticate", "Basic realm=\"CT-100-logout\"");
+    server_.send(
+        401,
+        "text/html; charset=utf-8",
+        "<!doctype html><html lang='pl'><head><meta charset='utf-8'><title>Wylogowano</title></head>"
+        "<body style='font-family:Arial,sans-serif;background:#eef2f5;color:#13202b;padding:24px'>"
+        "<h2>Sesja zamknieta</h2><p>Przegladarka dostala zadanie ponownego logowania.</p>"
+        "<p><a href='/'>Zaloguj ponownie</a></p></body></html>");
 }
 
 void WebConfigServer::handleApiDeviceInfo() {
@@ -243,6 +269,38 @@ void WebConfigServer::handleApiOutputBuzzer() {
         200,
         "application/json; charset=utf-8",
         String("{\"ok\":true,\"cmd\":\"BUZZER:") + ms + "\"}");
+}
+
+void WebConfigServer::handleApiVirtualKey() {
+    if (!authenticate()) return;
+
+    String key = server_.arg("plain");
+    if (key.isEmpty()) key = server_.arg("key");
+    key.trim();
+    if (key.isEmpty()) {
+        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_key\"}");
+        return;
+    }
+
+    if (onVirtualKey_) onVirtualKey_(key);
+    logger_.info("Virtual key from web: " + key);
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"key\":\"") + jsonEscape(key) + "\"}");
+}
+
+void WebConfigServer::handleApiVirtualCode() {
+    if (!authenticate()) return;
+
+    String code = server_.arg("plain");
+    if (code.isEmpty()) code = server_.arg("code");
+    code.trim();
+    if (code.isEmpty()) {
+        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_code\"}");
+        return;
+    }
+
+    if (onVirtualCode_) onVirtualCode_(code);
+    logger_.info("Virtual code from web: " + code);
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"code\":\"") + jsonEscape(code) + "\"}");
 }
 
 void WebConfigServer::handleFirmwarePage() {
@@ -412,106 +470,140 @@ String WebConfigServer::buildPage(const DeviceConfig& cfg) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CT-100 panel serwisowy</title>
+<title>CT-100 panel operatorski</title>
 <style>
-:root{--bg:#eef2f5;--card:#ffffff;--line:#d9e0e6;--text:#13202b;--muted:#5b6570;--blue:#0077C0;--dark:#00263E;--orange:#F18A00;--gray:#4B4D4F;--green:#0f9d58;--red:#d93025}
-*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
-.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}.sidebar{background:var(--dark);color:#fff;padding:20px;position:sticky;top:0;height:100vh}
-.brand{font-size:22px;font-weight:700;margin-bottom:6px}.brand-sub{font-size:13px;line-height:1.45;color:#d7e5ef;margin-bottom:20px}
-.nav a{display:block;color:#fff;text-decoration:none;padding:12px 14px;border-radius:12px;margin-bottom:6px;background:rgba(255,255,255,0.06)}
-.nav a:hover{background:rgba(255,255,255,0.12)}.rolebox{margin-top:20px;padding:14px;border:1px solid rgba(255,255,255,0.12);border-radius:14px;background:rgba(255,255,255,0.06);font-size:13px;line-height:1.5}
-.main{padding:20px}.section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:16px}h1,h2,h3{margin:0 0 12px}.sub{color:var(--muted);line-height:1.45}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{border:1px solid #e5eaef;border-radius:14px;padding:14px;background:#fafbfc}
-.label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:6px}.value{font-weight:700;font-size:16px;word-break:break-word}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mt{margin-top:12px}
-input,select{width:100%;padding:11px;border:1px solid #cfd8e3;border-radius:10px;background:#fff}.check{display:flex;gap:8px;align-items:center;font-size:14px}.check input{width:auto}
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}button,.btn{border:0;border-radius:10px;padding:12px 16px;cursor:pointer;font-weight:700;text-decoration:none;display:inline-block}
-.btn-blue{background:var(--blue);color:#fff}.btn-gray{background:var(--gray);color:#fff}.btn-orange{background:var(--orange);color:#fff}.btn-green{background:var(--green);color:#fff}.btn-red{background:var(--red);color:#fff}
-.note{font-size:13px;color:var(--muted)}.state-on{color:var(--green)}.state-off{color:var(--red)}.hidden{display:none!important}
-@media(max-width:960px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.grid,.grid3,.row{grid-template-columns:1fr}}
+:root{--bg:#e9ecef;--panel:#a7a7a7;--screen:#f2f2f2;--blue:#0d77bf;--ok:#119700;--cancel:#a60000;--text:#1b1b1b}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1280px;margin:0 auto;padding:24px}
+.top{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:20px}
+.badges{display:flex;gap:10px;flex-wrap:wrap}
+.badge{background:#fff;border:1px solid #d0d7df;border-radius:12px;padding:10px 14px}
+.btn{border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+.btn-blue{background:#0d77bf;color:#fff}.btn-gray{background:#4b4d4f;color:#fff}.btn-red{background:#a60000;color:#fff}.btn-green{background:#119700;color:#fff}.btn-orange{background:#d97800;color:#fff}
+.layout{display:grid;grid-template-columns:380px 1fr;gap:24px}
+.terminal{background:#a7a7a7;border:2px solid #3c3c3c;padding:18px 20px 10px;border-radius:2px;max-width:340px;margin:0 auto}
+.logo{width:122px;margin:0 auto 8px;background:var(--blue);color:#fff;text-align:center;padding:8px 10px;font-weight:700;font-size:18px}
+.screen{background:#f2f2f2;border:3px solid #111;height:152px;padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between}
+.screen-title{font-size:15px;font-weight:700;text-align:center}
+.screen-main{font-size:28px;font-weight:700;text-align:center;word-break:break-word;min-height:34px}
+.screen-sub{font-size:14px;text-align:center;min-height:18px}
+.screen-hint{font-size:13px;text-align:center;color:#444}
+.func-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:20px 12px 18px}
+.func-btn,.digit,.ok,.cancel{height:56px;border-radius:8px;border:2px solid #d0d0d0;color:#fff;font-size:18px;cursor:pointer}
+.func-btn{background:#969696;color:#eaeaea;border-color:#727272;height:40px;font-size:20px}
+.mid-hole{background:#fff;color:#000;border:3px solid #111;font-size:14px;font-weight:700;line-height:1.1}
+.keys{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.digit{background:#5a5a5a;font-size:42px}
+.cancel{background:var(--cancel);font-size:26px}
+.ok{background:var(--ok);font-size:26px}
+.rightcol{display:grid;gap:18px}
+.card{background:#fff;border:1px solid #d7dfe7;border-radius:18px;padding:18px}
+.section-title{font-size:22px;font-weight:700;margin-bottom:8px}
+.muted{color:#5f6872}
+.inline{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.input{width:100%;padding:12px 14px;border:1px solid #cfd8e3;border-radius:12px;font-size:18px}
+.status{font-size:15px;font-weight:700;min-height:20px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.kv{background:#f8fafc;border:1px solid #e2e8ef;border-radius:14px;padding:12px}
+.kv .k{font-size:12px;text-transform:uppercase;color:#6b7280;margin-bottom:6px}
+.kv .v{font-size:18px;font-weight:700;word-break:break-word}
+@media(max-width:980px){.layout{grid-template-columns:1fr}.terminal{max-width:360px}}
 </style>
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand">CT-100</div>
-    <div class="brand-sub">Panel serwisowy. Integracja, stabilnosc i diagnostyka.</div>
-    <nav class="nav">
-      <a href="#start">Start</a>
-      <a href="#outputs">Sterowanie wyjsciami</a>
-      <a href="#logs">Logi</a>
-      <a href="#firmware">Firmware / OTA</a>
-    </nav>
-    <div class="rolebox">
-      <div><strong>Rola:</strong> %CURRENT_ROLE%</div>
-      <div><strong>Uzytkownik:</strong> %CURRENT_USER%</div>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1 style="margin:0 0 6px 0">CT-100 panel operatorski</h1>
+      <div class="muted">Sterowanie urzadzeniem z webservera, wpisywanie kodu i obsluga wyjsc.</div>
     </div>
-  </aside>
+    <div class="badges">
+      <div class="badge"><strong>Rola:</strong> %CURRENT_ROLE%</div>
+      <div class="badge"><strong>Uzytkownik:</strong> %CURRENT_USER%</div>
+      <div class="badge"><strong>Urzadzenie:</strong> %DEVICE_NAME%</div>
+      <a class="btn btn-gray" href="/logs">Logi</a>
+      <a class="btn btn-gray" href="/firmware">Firmware</a>
+      <a class="btn btn-red" href="/logout">Wyloguj</a>
+    </div>
+  </div>
 
-  <main class="main">
-    <section class="section" id="start">
-      <h1>Start</h1>
-      <div class="grid3 mt">
-        <div class="card"><div class="label">Urzadzenie</div><div class="value" id="deviceNameHead">%DEVICE_NAME%</div></div>
-        <div class="card"><div class="label">Rola</div><div class="value" id="currentRole">%CURRENT_ROLE%</div></div>
-        <div class="card"><div class="label">IP</div><div class="value" id="liveIp">-</div></div>
-      </div>
-    </section>
-
-    <section class="section" id="outputs">
-      <h2>Sterowanie wyjsciami</h2>
-      <div class="sub">Możesz ręcznie włączyć albo wyłączyć wyjścia bezpośrednio z webpanelu.</div>
-
-      <div class="grid mt">
-        <div class="card">
-          <div class="label">OUT1</div>
-          <div class="value" id="out1State">-</div>
-          <div class="actions">
-            <button class="btn btn-green" type="button" onclick="fireOutput('/api/output/out1/on')">WŁĄCZ OUT1</button>
-            <button class="btn btn-red" type="button" onclick="fireOutput('/api/output/out1/off')">WYŁĄCZ OUT1</button>
-          </div>
+  <div class="layout">
+    <section>
+      <div class="terminal">
+        <div class="logo">TAMTRON</div>
+        <div class="screen">
+          <div class="screen-title" id="deviceScreenTitle">Terminal CT-100</div>
+          <div class="screen-main" id="deviceScreenMain">---</div>
+          <div class="screen-sub" id="deviceScreenSub">Gotowe</div>
+          <div class="screen-hint" id="deviceScreenHint">Wpisz kod lub uzyj klawiszy.</div>
         </div>
 
-        <div class="card">
-          <div class="label">OUT2</div>
-          <div class="value" id="out2State">-</div>
-          <div class="actions">
-            <button class="btn btn-green" type="button" onclick="fireOutput('/api/output/out2/on')">WŁĄCZ OUT2</button>
-            <button class="btn btn-red" type="button" onclick="fireOutput('/api/output/out2/off')">WYŁĄCZ OUT2</button>
-          </div>
+        <div class="func-row">
+          <button class="func-btn" type="button" onclick="sendVirtualKey('F1')">F1</button>
+          <button class="func-btn mid-hole" type="button" onclick="sendVirtualKey('MID')">OTWOR<br>20x10</button>
+          <button class="func-btn" type="button" onclick="sendVirtualKey('F2')">F2</button>
+        </div>
+
+        <div class="keys">
+          <button class="digit" type="button" onclick="appendDigit('1')">1</button>
+          <button class="digit" type="button" onclick="appendDigit('2')">2</button>
+          <button class="digit" type="button" onclick="appendDigit('3')">3</button>
+          <button class="digit" type="button" onclick="appendDigit('4')">4</button>
+          <button class="digit" type="button" onclick="appendDigit('5')">5</button>
+          <button class="digit" type="button" onclick="appendDigit('6')">6</button>
+          <button class="digit" type="button" onclick="appendDigit('7')">7</button>
+          <button class="digit" type="button" onclick="appendDigit('8')">8</button>
+          <button class="digit" type="button" onclick="appendDigit('9')">9</button>
+          <button class="cancel" type="button" onclick="clearCode()">X</button>
+          <button class="digit" type="button" onclick="appendDigit('0')">0</button>
+          <button class="ok" type="button" onclick="submitCode()">OK</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="rightcol">
+      <div class="card">
+        <div class="section-title">Kod z webservera</div>
+        <div class="muted">Kod mozesz wpisac klawiatura ekranowa albo recznie w polu ponizej.</div>
+        <div class="inline" style="margin-top:14px">
+          <input id="manualCode" class="input" placeholder="Wpisz kod produktu / operatora">
+        </div>
+        <div class="inline" style="margin-top:14px">
+          <button class="btn btn-blue" type="button" onclick="submitManualCode()">Wyslij kod</button>
+          <button class="btn btn-gray" type="button" onclick="clearCode()">Wyczysc</button>
+        </div>
+        <div class="status" id="codeStatus" style="margin-top:12px">Gotowe.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Sterowanie wyjsciami</div>
+        <div class="inline" style="margin-top:10px">
+          <button class="btn btn-green" type="button" onclick="fireOutput('/api/output/out1/on')">OUT1 ON</button>
+          <button class="btn btn-red" type="button" onclick="fireOutput('/api/output/out1/off')">OUT1 OFF</button>
+          <button class="btn btn-green" type="button" onclick="fireOutput('/api/output/out2/on')">OUT2 ON</button>
+          <button class="btn btn-red" type="button" onclick="fireOutput('/api/output/out2/off')">OUT2 OFF</button>
+          <button class="btn btn-orange" type="button" onclick="fireOutput('/api/output/buzzer?ms=120')">BUZZER</button>
         </div>
       </div>
 
-      <div class="card mt">
-        <div class="label">BUZZER</div>
-        <div class="value" id="buzzerState">-</div>
-        <div class="actions">
-          <button class="btn btn-orange" type="button" onclick="fireOutput('/api/output/buzzer?ms=80')">BEEP 80 ms</button>
-          <button class="btn btn-orange" type="button" onclick="fireOutput('/api/output/buzzer?ms=150')">BEEP 150 ms</button>
-          <button class="btn btn-orange" type="button" onclick="fireOutput('/api/output/buzzer?ms=400')">BEEP 400 ms</button>
+      <div class="card">
+        <div class="section-title">Stan urzadzenia</div>
+        <div class="grid">
+          <div class="kv"><div class="k">IP</div><div class="v" id="liveIp">-</div></div>
+          <div class="kv"><div class="k">Ostatnia karta</div><div class="v" id="rfidLast">-</div></div>
+          <div class="kv"><div class="k">Ostatni klawisz</div><div class="v" id="keyLast">-</div></div>
+          <div class="kv"><div class="k">Ostatnia waga</div><div class="v" id="scaleLast">-</div></div>
+          <div class="kv"><div class="k">OUT1</div><div class="v" id="out1State">-</div></div>
+          <div class="kv"><div class="k">OUT2</div><div class="v" id="out2State">-</div></div>
         </div>
-        <div class="mt note" id="outputMsg">Gotowe do sterowania.</div>
       </div>
     </section>
-
-    <section class="section" id="logs">
-      <h2>Logi i diagnostyka</h2>
-      <div class="actions">
-        <a class="btn btn-gray" href="/logs" target="_blank">Otworz logi</a>
-        <a class="btn btn-gray" href="/status" target="_blank">Otworz status TXT</a>
-      </div>
-    </section>
-
-    <section class="section" id="firmware">
-      <h2>Firmware / OTA</h2>
-      <div class="actions">
-        <a class="btn btn-blue" href="/firmware">Przejdz do uploadu .bin</a>
-      </div>
-    </section>
-  </main>
+  </div>
 </div>
 
 <script>
 (function(){
+  let codeBuffer = "";
   const el = (id) => document.getElementById(id);
 
   function setText(id, value){
@@ -519,49 +611,95 @@ input,select{width:100%;padding:11px;border:1px solid #cfd8e3;border-radius:10px
     if(node) node.textContent = (value === undefined || value === null || value === "") ? "-" : value;
   }
 
-  function setStateLabel(id, state){
-    const node = el(id);
-    if(!node) return;
-    node.textContent = state ? "WŁĄCZONE" : "WYŁĄCZONE";
-    node.classList.remove("state-on","state-off");
-    node.classList.add(state ? "state-on" : "state-off");
+  function syncDisplay(){
+    setText("deviceScreenMain", codeBuffer || "---");
+    setText("deviceScreenSub", codeBuffer ? "Kod gotowy do wyslania" : "Gotowe");
+    if(el("manualCode")) el("manualCode").value = codeBuffer;
   }
 
-  async function fetchJson(url){
-    const res = await fetch(url, {cache:"no-store"});
+  async function postPlain(url, payload){
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type":"text/plain;charset=utf-8"},
+      body: payload
+    });
     if(!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
   }
 
-  async function loadDeviceInfo(){
-    const data = await fetchJson("/api/device/info");
-    setText("deviceNameHead", data.deviceName);
-    setText("currentRole", data.currentRole);
-    setText("liveIp", data.ip);
-  }
+  window.appendDigit = function(d){
+    codeBuffer += d;
+    syncDisplay();
+    setText("codeStatus", "Budowanie kodu...");
+  };
 
-  async function loadRuntime(){
-    const data = await fetchJson("/api/runtime");
-    setStateLabel("out1State", !!data.out1);
-    setStateLabel("out2State", !!data.out2);
-    setStateLabel("buzzerState", !!data.buzzer);
-  }
+  window.clearCode = function(){
+    codeBuffer = "";
+    syncDisplay();
+    setText("codeStatus", "Kod wyczyszczony.");
+  };
 
-  window.fireOutput = async function(url){
+  window.submitCode = async function(){
+    if(!codeBuffer){
+      setText("codeStatus", "Brak kodu do wyslania.");
+      return;
+    }
     try{
-      setText("outputMsg", "Wysyłanie komendy...");
-      const res = await fetch(url, {method:"POST"});
-      if(!res.ok) throw new Error("HTTP " + res.status);
-      await loadRuntime();
-      setText("outputMsg", "Komenda wykonana.");
-    } catch(err){
-      setText("outputMsg", "Błąd: " + err.message);
+      await postPlain("/api/keypad/code", codeBuffer);
+      setText("codeStatus", "Kod wyslany: " + codeBuffer);
+      setText("deviceScreenHint", "Kod wyslany do urzadzenia.");
+    }catch(err){
+      setText("codeStatus", "Blad: " + err.message);
     }
   };
 
-  Promise.all([loadDeviceInfo(), loadRuntime()])
-    .catch(err => setText("outputMsg", "Błąd startu: " + err.message));
+  window.submitManualCode = async function(){
+    const value = (el("manualCode")?.value || "").trim();
+    codeBuffer = value;
+    syncDisplay();
+    await window.submitCode();
+  };
 
+  window.sendVirtualKey = async function(key){
+    try{
+      await postPlain("/api/keypad/key", key);
+      setText("codeStatus", "Wyslano klawisz: " + key);
+      setText("deviceScreenTitle", "KLAWISZ");
+      setText("deviceScreenMain", key);
+      setText("deviceScreenSub", "Wyslano z webservera");
+      setText("deviceScreenHint", "Mozesz dalej obslugiwac urzadzenie.");
+    }catch(err){
+      setText("codeStatus", "Blad: " + err.message);
+    }
+  };
+
+  window.fireOutput = async function(url){
+    try{
+      const res = await fetch(url, {method:"POST"});
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      await loadRuntime();
+      setText("codeStatus", "Komenda wykonana.");
+    } catch(err){
+      setText("codeStatus", "Blad: " + err.message);
+    }
+  };
+
+  async function loadRuntime(){
+    try{
+      const data = await fetch("/api/runtime", {cache:"no-store"}).then(r => r.json());
+      setText("liveIp", data.ip || "-");
+      setText("rfidLast", data.rfidLast || "-");
+      setText("keyLast", data.keyLast || "-");
+      setText("scaleLast", data.scaleTcpLast || "-");
+      setText("out1State", data.out1 ? "ON" : "OFF");
+      setText("out2State", data.out2 ? "ON" : "OFF");
+    } catch(err){
+      setText("codeStatus", "Blad runtime: " + err.message);
+    }
+  }
+
+  syncDisplay();
+  loadRuntime();
   setInterval(loadRuntime, 3000);
 })();
 </script>

@@ -21,6 +21,8 @@ public:
     void onSave(std::function<void(DeviceConfig)> callback);
     void onReboot(std::function<void()> callback);
     void onOutputCommand(std::function<void(const String&)> callback);
+    void onVirtualKey(std::function<void(const String&)> callback);
+    void onVirtualCode(std::function<void(const String&)> callback);
 
     void setConfigProvider(std::function<DeviceConfig()> provider);
     void setStatusProvider(std::function<String()> provider);
@@ -33,6 +35,8 @@ private:
     std::function<void(DeviceConfig)> onSave_;
     std::function<void()> onReboot_;
     std::function<void(const String&)> onOutputCommand_;
+    std::function<void(const String&)> onVirtualKey_;
+    std::function<void(const String&)> onVirtualCode_;
     std::function<DeviceConfig()> configProvider_;
     std::function<String()> statusProvider_;
     std::function<String()> runtimeJsonProvider_;
@@ -48,6 +52,7 @@ private:
     void handleLogs();
     void handleStatus();
     void handleReboot();
+    void handleLogout();
 
     void handleApiDeviceInfo();
     void handleApiConfigGet();
@@ -59,6 +64,9 @@ private:
     void handleApiOutputOut2On();
     void handleApiOutputOut2Off();
     void handleApiOutputBuzzer();
+
+    void handleApiVirtualKey();
+    void handleApiVirtualCode();
 
     void handleFirmwarePage();
     void handleFirmwareUpload();

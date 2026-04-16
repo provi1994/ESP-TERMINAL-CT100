@@ -39,7 +39,9 @@ unsigned long lcdCustomUntil = 0;
 String remoteStatusText = "Oczekuje na wazenie";
 unsigned long remoteStatusUntil = 0;
 String currentWeight = "---";
+unsigned long lastWeightAt = 0;
 String qrLastData;
+String lastWebCode;
 
 bool out1State = false;
 bool out2State = false;
@@ -101,6 +103,31 @@ static String activeHeaderText() {
     return "Oczekuje na wazenie";
 }
 
+static String sanitizeWeightDigits(const String& raw) {
+    String digits;
+    digits.reserve(raw.length());
+
+    for (size_t i = 0; i < raw.length(); ++i) {
+        if (isDigit(raw[i])) digits += raw[i];
+    }
+
+    while (digits.length() > 1 && digits[0] == '0') {
+        digits.remove(0, 1);
+    }
+
+    return digits;
+}
+
+static String buildWeightForDisplay() {
+    const bool scaleConnected = cfg.scaleTcp.enabled && (scaleTcpManager.isConnected() || scaleTcpManager.hasClient());
+    const bool freshWeight = (millis() - lastWeightAt) <= 5000UL;
+
+    if (!cfg.scaleTcp.enabled) return "WAGA OFF";
+    if (!scaleConnected || !freshWeight) return "Brak polaczenia z miernikiem";
+    if (currentWeight.isEmpty()) return "Brak polaczenia z miernikiem";
+    return currentWeight + " KG";
+}
+
 static String buildStatusText() {
     String out;
     out += "device=" + cfg.network.deviceName + "\n";
@@ -108,12 +135,14 @@ static String buildStatusText() {
     out += "rfid_last=" + lastCard + "\n";
     out += "qr_last=" + qrLastData + "\n";
     out += "key_last=" + lastKey + "\n";
+    out += "web_code_last=" + lastWebCode + "\n";
     out += "last_outbound=" + lastOutboundFrame + "\n";
     out += "last_inbound=" + lastInboundFrame + "\n";
     out += "cmd_tcp_mode=" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\n";
     out += "cmd_tcp_last=" + tcpManager.lastMessage() + "\n";
     out += "scale_enabled=" + String(cfg.scaleTcp.enabled ? "on" : "off") + "\n";
     out += "scale_tcp_mode=" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\n";
+    out += "scale_display=" + buildWeightForDisplay() + "\n";
     out += "out1=" + String(out1State ? "on" : "off") + "\n";
     out += "out2=" + String(out2State ? "on" : "off") + "\n";
     out += "buzzer=" + String(buzzerState ? "on" : "off") + "\n";
@@ -271,6 +300,40 @@ static void handleOutputCommand(const String& cmd, const String& sourceTag) {
     }
 }
 
+static void handleVirtualKeyFromWeb(const String& key) {
+    lastKey = key;
+    beepBuzzer(40);
+
+    const String payload = "KEY:" + key;
+    lastOutboundFrame = payload;
+    tcpManager.sendLine(payload);
+
+    if (cfg.display.enabled) {
+        display.showInputScreen("KLAWISZ WWW", key, "Wyslano z panelu");
+        lcdCustomText = key;
+        lcdCustomUntil = millis() + 2500UL;
+    }
+
+    logger.info("Virtual web key: " + key);
+}
+
+static void handleVirtualCodeFromWeb(const String& code) {
+    lastWebCode = code;
+    beepBuzzer(60);
+
+    const String payload = "CODE:" + code;
+    lastOutboundFrame = payload;
+    tcpManager.sendLine(payload);
+
+    if (cfg.display.enabled) {
+        display.showInputScreen("KOD Z WWW", code, "Wyslano z panelu");
+        lcdCustomText = code;
+        lcdCustomUntil = millis() + 3000UL;
+    }
+
+    logger.info("Virtual web code: " + code);
+}
+
 void setup() {
     Serial.begin(115200);
     delay(500);
@@ -310,11 +373,11 @@ void setup() {
     });
 
     scaleTcpManager.onLineReceived([](const String& line) {
-        String weight = line;
-        weight.trim();
+        String weight = sanitizeWeightDigits(line);
         if (weight.isEmpty()) return;
 
         currentWeight = weight;
+        lastWeightAt = millis();
         lastInboundFrame = "SCALE:" + weight;
         logger.info("Scale ASCII: " + currentWeight);
     });
@@ -365,12 +428,13 @@ void setup() {
         out += "\"rfidLast\":\"" + jsonEscapeLocal(lastCard) + "\",";
         out += "\"qrLast\":\"" + jsonEscapeLocal(qrLastData) + "\",";
         out += "\"keyLast\":\"" + jsonEscapeLocal(lastKey) + "\",";
+        out += "\"webCodeLast\":\"" + jsonEscapeLocal(lastWebCode) + "\",";
         out += "\"lastOutbound\":\"" + jsonEscapeLocal(lastOutboundFrame) + "\",";
         out += "\"lastInbound\":\"" + jsonEscapeLocal(lastInboundFrame) + "\",";
         out += "\"cmdTcpConnected\":" + String(cmdTcpConnected ? "true" : "false") + ",";
         out += "\"cmdTcpLast\":\"" + jsonEscapeLocal(tcpManager.lastMessage()) + "\",";
         out += "\"scaleTcpConnected\":" + String(scaleConnected ? "true" : "false") + ",";
-        out += "\"scaleTcpLast\":\"" + jsonEscapeLocal(scaleTcpManager.lastMessage()) + "\",";
+        out += "\"scaleTcpLast\":\"" + jsonEscapeLocal(buildWeightForDisplay()) + "\",";
         out += "\"keypadDetected\":" + String(keypadDetected ? "true" : "false") + ",";
         out += "\"rfidEnabled\":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
         out += "\"displayEnabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
@@ -392,6 +456,14 @@ void setup() {
 
     webServer.onOutputCommand([](const String& cmd) {
         handleOutputCommand(cmd, "(WEB)");
+    });
+
+    webServer.onVirtualKey([](const String& key) {
+        handleVirtualKeyFromWeb(key);
+    });
+
+    webServer.onVirtualCode([](const String& code) {
+        handleVirtualCodeFromWeb(code);
     });
 
     webServer.onReboot([]() { ESP.restart(); });
@@ -445,7 +517,7 @@ void loop() {
         } else {
             display.showIdleWeight(
                 activeHeaderText(),
-                currentWeight.isEmpty() ? String("---") : currentWeight,
+                buildWeightForDisplay(),
                 "Zbliz karte RFID");
         }
     }

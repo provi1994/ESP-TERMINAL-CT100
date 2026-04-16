@@ -22,8 +22,8 @@ static constexpr int SHIFT595_LATCH = 3;   // STCP
 
 // Mapowanie wyjść 74HC595
 // QA=0 QB=1 QC=2 QD=3 QE=4 QF=5 QG=6 QH=7
-static constexpr uint8_t OUT1_BIT = 1;    // QB = wyjście B
-static constexpr uint8_t OUT2_BIT = 2;    // QC = wyjście C
+static constexpr uint8_t OUT1_BIT = 2;    // QB = wyjście B
+static constexpr uint8_t OUT2_BIT = 1;    // QC = wyjście C
 static constexpr uint8_t BUZZER_BIT = 3;  // QD = wyjście D
 
 // Dla BD649 ma być aktywne HIGH

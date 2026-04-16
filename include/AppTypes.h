@@ -59,9 +59,78 @@ struct RfidSettings {
     RfidEncoding encoding = RfidEncoding::HEX_MODE;
 };
 
+struct FlowSettings {
+    bool enabled;
+    bool remoteTriggerEnabled;
+    bool weightTriggerEnabled;
+    uint16_t weightThresholdKg;
+    uint16_t summaryScreenMs;
+    uint16_t resultScreenMs;
+
+    FlowSettings()
+        : enabled(true),
+          remoteTriggerEnabled(true),
+          weightTriggerEnabled(true),
+          weightThresholdKg(500),
+          summaryScreenMs(2500),
+          resultScreenMs(2500) {}
+};
+
+struct FlowScreenSettings {
+    bool enabled;
+    uint8_t order;
+    String name;
+    String title;
+    String line1;
+    String line2;
+    String hint;
+
+    FlowScreenSettings()
+        : enabled(true),
+          order(1),
+          name("Ekran"),
+          title(""),
+          line1(""),
+          line2(""),
+          hint("") {}
+
+    FlowScreenSettings(
+        bool enabled_,
+        uint8_t order_,
+        const String& name_,
+        const String& title_,
+        const String& line1_,
+        const String& line2_,
+        const String& hint_)
+        : enabled(enabled_),
+          order(order_),
+          name(name_),
+          title(title_),
+          line1(line1_),
+          line2(line2_),
+          hint(hint_) {}
+};
+
 struct DisplaySettings {
     bool enabled = true;
     uint8_t contrast = 180;
+
+    // Konfiguracja pełnej sekwencji ekranów LCD.
+    FlowSettings flow;
+
+    // Cztery konfigurowalne ekrany, które runtime może włączać,
+    // wyłączać i porządkować według pola order.
+    FlowScreenSettings screen1 = FlowScreenSettings(
+        true, 1, "Ekran 1", "ODBIJ KARTE", "Zbliz karte RFID", "", "Czekam na karte");
+
+    FlowScreenSettings screen2 = FlowScreenSettings(
+        true, 2, "Ekran 2", "KOD PRODUKTU", "Wprowadz kod", "", "#=OK *=Kasuj");
+
+    FlowScreenSettings screen3 = FlowScreenSettings(
+        true, 3, "Ekran 3", "PODSUMOWANIE", "Dane odczytane", "", "Sprawdz dane");
+
+    FlowScreenSettings screen4 = FlowScreenSettings(
+        true, 4, "Ekran 4", "GOTOWE", "Mozna kontynuowac", "", "Oczekiwanie...");
 };
 
 struct KeypadSettings {
