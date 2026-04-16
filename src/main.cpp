@@ -72,19 +72,23 @@ static String jsonEscapeLocal(const String& value) {
     return out;
 }
 
-static void setOut1(bool state) {
-    out1State = state;
-    outputs595.setBit(Pins::OUT1_BIT, state);
+static bool toPhysicalLevel(bool logicalState, bool activeLow) {
+    return activeLow ? !logicalState : logicalState;
 }
 
-static void setOut2(bool state) {
-    out2State = state;
-    outputs595.setBit(Pins::OUT2_BIT, state);
+static void setOut1(bool logicalState) {
+    out1State = logicalState;
+    outputs595.setBit(Pins::OUT1_BIT, toPhysicalLevel(logicalState, Pins::OUT1_ACTIVE_LOW));
 }
 
-static void setBuzzer(bool state) {
-    buzzerState = state;
-    outputs595.setBit(Pins::BUZZER_BIT, state);
+static void setOut2(bool logicalState) {
+    out2State = logicalState;
+    outputs595.setBit(Pins::OUT2_BIT, toPhysicalLevel(logicalState, Pins::OUT2_ACTIVE_LOW));
+}
+
+static void setBuzzer(bool logicalState) {
+    buzzerState = logicalState;
+    outputs595.setBit(Pins::BUZZER_BIT, toPhysicalLevel(logicalState, Pins::BUZZER_ACTIVE_LOW));
 }
 
 static void beepBuzzer(unsigned long durationMs) {
@@ -231,6 +235,42 @@ static void applyRuntimeConfig() {
     }
 }
 
+static void handleOutputCommand(const String& cmd, const String& sourceTag) {
+    if (cmd.equalsIgnoreCase("OUT1:ON")) {
+        setOut1(true);
+        logger.info("OUT1=ON " + sourceTag);
+        return;
+    }
+
+    if (cmd.equalsIgnoreCase("OUT1:OFF")) {
+        setOut1(false);
+        logger.info("OUT1=OFF " + sourceTag);
+        return;
+    }
+
+    if (cmd.equalsIgnoreCase("OUT2:ON")) {
+        setOut2(true);
+        logger.info("OUT2=ON " + sourceTag);
+        return;
+    }
+
+    if (cmd.equalsIgnoreCase("OUT2:OFF")) {
+        setOut2(false);
+        logger.info("OUT2=OFF " + sourceTag);
+        return;
+    }
+
+    if (cmd.startsWith("BUZZER:")) {
+        String msText = cmd.substring(7);
+        msText.trim();
+        unsigned long duration = (unsigned long)msText.toInt();
+        if (duration == 0) duration = 120;
+        if (duration > 5000UL) duration = 5000UL;
+        beepBuzzer(duration);
+        logger.info("BUZZER=" + String(duration) + "ms " + sourceTag);
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     delay(500);
@@ -266,40 +306,7 @@ void setup() {
             return;
         }
 
-        if (line.equalsIgnoreCase("OUT1:ON")) {
-            setOut1(true);
-            logger.info("OUT1=ON");
-            return;
-        }
-
-        if (line.equalsIgnoreCase("OUT1:OFF")) {
-            setOut1(false);
-            logger.info("OUT1=OFF");
-            return;
-        }
-
-        if (line.equalsIgnoreCase("OUT2:ON")) {
-            setOut2(true);
-            logger.info("OUT2=ON");
-            return;
-        }
-
-        if (line.equalsIgnoreCase("OUT2:OFF")) {
-            setOut2(false);
-            logger.info("OUT2=OFF");
-            return;
-        }
-
-        if (line.startsWith("BUZZER:")) {
-            String msText = line.substring(7);
-            msText.trim();
-            unsigned long duration = (unsigned long)msText.toInt();
-            if (duration == 0) duration = 120;
-            if (duration > 5000UL) duration = 5000UL;
-            beepBuzzer(duration);
-            logger.info("BUZZER=" + String(duration) + "ms");
-            return;
-        }
+        handleOutputCommand(line, "(TCP)");
     });
 
     scaleTcpManager.onLineReceived([](const String& line) {
@@ -384,41 +391,7 @@ void setup() {
     });
 
     webServer.onOutputCommand([](const String& cmd) {
-        if (cmd.equalsIgnoreCase("OUT1:ON")) {
-            setOut1(true);
-            logger.info("OUT1=ON (WEB)");
-            return;
-        }
-
-        if (cmd.equalsIgnoreCase("OUT1:OFF")) {
-            setOut1(false);
-            logger.info("OUT1=OFF (WEB)");
-            return;
-        }
-
-        if (cmd.equalsIgnoreCase("OUT2:ON")) {
-            setOut2(true);
-            logger.info("OUT2=ON (WEB)");
-            return;
-        }
-
-        if (cmd.equalsIgnoreCase("OUT2:OFF")) {
-            setOut2(false);
-            logger.info("OUT2=OFF (WEB)");
-            return;
-        }
-
-        if (cmd.startsWith("BUZZER:")) {
-            String msText = cmd.substring(7);
-            msText.trim();
-
-            unsigned long duration = (unsigned long)msText.toInt();
-            if (duration == 0) duration = 120;
-            if (duration > 5000UL) duration = 5000UL;
-
-            beepBuzzer(duration);
-            logger.info("BUZZER=" + String(duration) + "ms (WEB)");
-        }
+        handleOutputCommand(cmd, "(WEB)");
     });
 
     webServer.onReboot([]() { ESP.restart(); });
