@@ -62,6 +62,15 @@ struct RfidSettings {
 struct QrSettings {
     bool enabled = true;
     uint32_t baudRate = 9600;
+    bool sendToTcp = true;
+    bool publishToWeb = true;
+    bool applyStartupCommands = false;
+    bool saveToFlashAfterApply = false;
+    uint16_t startupCommandDelayMs = 120;
+    uint16_t interCommandDelayMs = 80;
+    uint16_t maxFrameLength = 256;
+    String linePrefix = "QR:";
+    String startupCommandsHex = ""; // Jedna komenda HEX na linię. Spacje dozwolone.
 };
 
 struct FlowSettings {

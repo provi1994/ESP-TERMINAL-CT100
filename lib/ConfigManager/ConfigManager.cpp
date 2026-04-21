@@ -36,6 +36,15 @@ DeviceConfig ConfigManager::load() {
 
     config_.qr.enabled = prefs_.getBool("qr_en", config_.qr.enabled);
     config_.qr.baudRate = prefs_.getULong("qr_baud", config_.qr.baudRate);
+    config_.qr.sendToTcp = prefs_.getBool("qr_tcp", config_.qr.sendToTcp);
+    config_.qr.publishToWeb = prefs_.getBool("qr_web", config_.qr.publishToWeb);
+    config_.qr.applyStartupCommands = prefs_.getBool("qr_apply", config_.qr.applyStartupCommands);
+    config_.qr.saveToFlashAfterApply = prefs_.getBool("qr_save", config_.qr.saveToFlashAfterApply);
+    config_.qr.startupCommandDelayMs = prefs_.getUShort("qr_sdelay", config_.qr.startupCommandDelayMs);
+    config_.qr.interCommandDelayMs = prefs_.getUShort("qr_idelay", config_.qr.interCommandDelayMs);
+    config_.qr.maxFrameLength = prefs_.getUShort("qr_maxlen", config_.qr.maxFrameLength);
+    config_.qr.linePrefix = prefs_.getString("qr_prefix", config_.qr.linePrefix);
+    config_.qr.startupCommandsHex = prefs_.getString("qr_starthex", config_.qr.startupCommandsHex);
 
     config_.display.enabled = prefs_.getBool("disp_en", config_.display.enabled);
     config_.display.contrast = prefs_.getUChar("disp_ctr", config_.display.contrast);
@@ -124,6 +133,15 @@ bool ConfigManager::save(const DeviceConfig& config) {
 
     prefs_.putBool("qr_en", config.qr.enabled);
     prefs_.putULong("qr_baud", config.qr.baudRate);
+    prefs_.putBool("qr_tcp", config.qr.sendToTcp);
+    prefs_.putBool("qr_web", config.qr.publishToWeb);
+    prefs_.putBool("qr_apply", config.qr.applyStartupCommands);
+    prefs_.putBool("qr_save", config.qr.saveToFlashAfterApply);
+    prefs_.putUShort("qr_sdelay", config.qr.startupCommandDelayMs);
+    prefs_.putUShort("qr_idelay", config.qr.interCommandDelayMs);
+    prefs_.putUShort("qr_maxlen", config.qr.maxFrameLength);
+    prefs_.putString("qr_prefix", config.qr.linePrefix);
+    prefs_.putString("qr_starthex", config.qr.startupCommandsHex);
 
     prefs_.putBool("disp_en", config.display.enabled);
     prefs_.putUChar("disp_ctr", config.display.contrast);

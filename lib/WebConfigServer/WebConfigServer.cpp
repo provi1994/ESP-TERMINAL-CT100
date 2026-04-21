@@ -35,6 +35,9 @@ void WebConfigServer::begin(const DeviceConfig& config) {
 
     server_.on("/api/keypad/key", HTTP_POST, [this]() { handleApiVirtualKey(); });
     server_.on("/api/keypad/code", HTTP_POST, [this]() { handleApiVirtualCode(); });
+    server_.on("/api/qr/command", HTTP_POST, [this]() { handleApiQrCommand(); });
+    server_.on("/api/qr/apply-startup", HTTP_POST, [this]() { handleApiQrApplyStartup(); });
+    server_.on("/api/qr/save-flash", HTTP_POST, [this]() { handleApiQrSaveFlash(); });
 
     server_.on("/firmware", HTTP_GET, [this]() { handleFirmwarePage(); });
     server_.on(
@@ -70,6 +73,7 @@ void WebConfigServer::onVirtualKey(std::function<void(const String&)> callback) 
 void WebConfigServer::onVirtualCode(std::function<void(const String&)> callback) { onVirtualCode_ = callback; }
 void WebConfigServer::onFlowStart(std::function<void()> callback) { onFlowStart_ = callback; }
 void WebConfigServer::onFlowCancel(std::function<void()> callback) { onFlowCancel_ = callback; }
+void WebConfigServer::onQrCommand(std::function<void(const String&)> callback) { onQrCommand_ = callback; }
 void WebConfigServer::setConfigProvider(std::function<DeviceConfig()> provider) { configProvider_ = provider; }
 void WebConfigServer::setStatusProvider(std::function<String()> provider) { statusProvider_ = provider; }
 void WebConfigServer::setRuntimeJsonProvider(std::function<String()> provider) { runtimeJsonProvider_ = provider; }
@@ -232,6 +236,31 @@ void WebConfigServer::handleApiFlowCancel() {
     server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"flow\":\"cancelled\"}");
 }
 
+void WebConfigServer::handleApiQrCommand() {
+    if (!authenticate()) return;
+    String cmd = server_.arg("plain");
+    if (cmd.isEmpty()) cmd = server_.arg("cmd");
+    cmd.trim();
+    if (cmd.isEmpty()) {
+        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_cmd\"}");
+        return;
+    }
+    if (onQrCommand_) onQrCommand_(cmd);
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"cmd\":\"") + jsonEscape(cmd) + "\"}");
+}
+
+void WebConfigServer::handleApiQrApplyStartup() {
+    if (!authenticate()) return;
+    if (onQrCommand_) onQrCommand_("APPLY_STARTUP");
+    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"action\":\"apply_startup\"}");
+}
+
+void WebConfigServer::handleApiQrSaveFlash() {
+    if (!authenticate()) return;
+    if (onQrCommand_) onQrCommand_("SAVE_FLASH");
+    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"action\":\"save_flash\"}");
+}
+
 void WebConfigServer::handleFirmwarePage() {
     if (!authenticate()) return;
     String html;
@@ -329,7 +358,16 @@ String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) {
 
     out += "\"qr\":{";
     out += "\"enabled\":" + String(cfg.qr.enabled ? "true" : "false") + ",";
-    out += "\"baudRate\":" + String(cfg.qr.baudRate) + "},";
+    out += "\"baudRate\":" + String(cfg.qr.baudRate) + ",";
+    out += "\"sendToTcp\":" + String(cfg.qr.sendToTcp ? "true" : "false") + ",";
+    out += "\"publishToWeb\":" + String(cfg.qr.publishToWeb ? "true" : "false") + ",";
+    out += "\"applyStartupCommands\":" + String(cfg.qr.applyStartupCommands ? "true" : "false") + ",";
+    out += "\"saveToFlashAfterApply\":" + String(cfg.qr.saveToFlashAfterApply ? "true" : "false") + ",";
+    out += "\"startupCommandDelayMs\":" + String(cfg.qr.startupCommandDelayMs) + ",";
+    out += "\"interCommandDelayMs\":" + String(cfg.qr.interCommandDelayMs) + ",";
+    out += "\"maxFrameLength\":" + String(cfg.qr.maxFrameLength) + ",";
+    out += "\"linePrefix\":\"" + jsonEscape(cfg.qr.linePrefix) + "\",";
+    out += "\"startupCommandsHex\":\"" + jsonEscape(cfg.qr.startupCommandsHex) + "\"},";
 
     out += "\"display\":{";
     out += "\"enabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
@@ -361,19 +399,34 @@ String WebConfigServer::buildPage(const DeviceConfig& cfg) {
 <title>CT-100 panel</title>
 <style>
 body{font-family:Arial,sans-serif;background:#eef2f5;color:#13202b;margin:0;padding:18px}
-.wrap{max-width:1280px;margin:0 auto}.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.wrap{max-width:1400px;margin:0 auto}.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
 .card{background:#fff;border:1px solid #d9e0e6;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer}.blue{background:#0077C0;color:#fff}.green{background:#119700;color:#fff}.red{background:#A60000;color:#fff}.gray{background:#4B4D4F;color:#fff}.orange{background:#F18A00;color:#fff}.light{background:#fff;color:#13202b;border:1px solid #d9e0e6}label{display:block;font-size:12px;font-weight:700;color:#5b6570;margin-bottom:6px;text-transform:uppercase}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd8e3;border-radius:12px;box-sizing:border-box}textarea{min-height:160px}h1,h2{margin:0 0 8px 0}.muted{color:#5b6570}.actions{display:flex;gap:10px;flex-wrap:wrap}.mono{font-family:monospace}.pill{display:inline-block;padding:5px 10px;background:#e9f4fb;border-radius:999px;font-size:12px;font-weight:700}@media(max-width:980px){.grid,.grid3,.row{grid-template-columns:1fr}}</style>
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer}.blue{background:#0077C0;color:#fff}.green{background:#119700;color:#fff}.red{background:#A60000;color:#fff}.gray{background:#4B4D4F;color:#fff}.orange{background:#F18A00;color:#fff}.light{background:#fff;color:#13202b;border:1px solid #d9e0e6}label{display:block;font-size:12px;font-weight:700;color:#5b6570;margin-bottom:6px;text-transform:uppercase}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd8e3;border-radius:12px;box-sizing:border-box}textarea{min-height:160px}h1,h2,h3{margin:0 0 8px 0}.muted{color:#5b6570}.actions{display:flex;gap:10px;flex-wrap:wrap}.mono{font-family:monospace}.pill{display:inline-block;padding:5px 10px;background:#e9f4fb;border-radius:999px;font-size:12px;font-weight:700;margin:0 6px 6px 0}.small{font-size:12px}.kbd{font-family:monospace;background:#0f172a;color:#fff;border-radius:6px;padding:2px 6px}.preset-list button{margin:0 8px 8px 0}.ok{color:#119700}.warn{color:#A60000}@media(max-width:980px){.grid,.grid3,.grid4,.row{grid-template-columns:1fr}}</style>
 </head><body><div class="wrap">
-<div class="top"><div><h1>CT-100 · panel intuicyjny</h1><div class="muted">Rozszerzony webserver: flow ważenia, moduły i diagnostyka.</div></div><div class="actions"><button class="btn light" onclick="openUrl('/status')">Status</button><button class="btn light" onclick="openUrl('/logs')">Logi</button><button class="btn light" onclick="openUrl('/firmware')">Firmware</button><button class="btn red" onclick="reboot()">Restart</button></div></div>
+<div class="top"><div><h1>CT-100 · panel intuicyjny</h1><div class="muted">Rozszerzony webserver: flow ważenia, QR-CAM GM805-L, moduły i diagnostyka.</div></div><div class="actions"><button class="btn light" onclick="openUrl('/status')">Status</button><button class="btn light" onclick="openUrl('/logs')">Logi</button><button class="btn light" onclick="openUrl('/firmware')">Firmware</button><button class="btn red" onclick="reboot()">Restart</button></div></div>
 <div class="grid">
-<div class="card"><h2>Flow ważenia</h2><div class="actions"><button class="btn green" onclick="post('/api/flow/start')">Start ważenia</button><button class="btn red" onclick="post('/api/flow/cancel')">Anuluj flow</button><button class="btn orange" onclick="buzz()">Buzzer</button></div><div style="margin-top:14px" class="muted">Start inicjuje sekwencję LCD. Sekwencja zawiera tylko aktywne moduły: RFID, keyboard, QR.</div><div style="margin-top:14px" id="runtimePills"></div></div>
+<div class="card"><h2>Flow ważenia</h2><div class="actions"><button class="btn green" onclick="post('/api/flow/start')">Start ważenia</button><button class="btn red" onclick="post('/api/flow/cancel')">Anuluj flow</button><button class="btn orange" onclick="buzz()">Buzzer</button></div><div style="margin-top:14px" class="muted">Sekwencja zawiera tylko aktywne moduły: RFID, keyboard, QR.</div><div style="margin-top:14px" id="runtimePills"></div></div>
 <div class="card"><h2>Szybkie sterowanie</h2><div class="actions"><button class="btn green" onclick="post('/api/output/out1/on')">OUT1 ON</button><button class="btn gray" onclick="post('/api/output/out1/off')">OUT1 OFF</button><button class="btn green" onclick="post('/api/output/out2/on')">OUT2 ON</button><button class="btn gray" onclick="post('/api/output/out2/off')">OUT2 OFF</button></div><div style="margin-top:14px" class="row"><div><label>Wirtualny klawisz</label><input id="virtKey" value="F1"></div><div><label>Wirtualny kod</label><input id="virtCode" placeholder="np. 12345"></div></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="sendKey()">Wyślij klawisz</button><button class="btn blue" onclick="sendCode()">Wyślij kod</button></div></div>
 </div>
-<div class="card" style="margin-top:16px"><h2>Konfiguracja modułów</h2><div class="grid3"><div><label>Nazwa urządzenia</label><input id="deviceName"></div><div><label>Tryb sieci</label><select id="networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div><div><label>Kontrast LCD</label><input id="contrast" type="number"></div><div><label>RFID</label><select id="rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Keyboard</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div></div><div class="actions" style="margin-top:14px"><button class="btn blue" onclick="saveConfig()">Zapisz konfigurację</button></div></div>
+<div class="card" style="margin-top:16px"><h2>Konfiguracja główna</h2><div class="grid4"><div><label>Nazwa urządzenia</label><input id="deviceName"></div><div><label>Tryb sieci</label><select id="networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div><div><label>Kontrast LCD</label><input id="contrast" type="number"></div><div><label>Prefix linii QR -> TCP</label><input id="qrLinePrefix" placeholder="QR:"></div><div><label>RFID</label><select id="rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Keyboard</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR-CAM</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR baud</label><input id="qrBaudRate" type="number"></div><div><label>QR -> TCP</label><select id="qrSendToTcp"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR w runtime/web</label><select id="qrPublishToWeb"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Startup komendy GM805</label><select id="qrApplyStartupCommands"><option value="true">APPLY</option><option value="false">OFF</option></select></div><div><label>Zapisz do flash po apply</label><select id="qrSaveToFlashAfterApply"><option value="true">YES</option><option value="false">NO</option></select></div><div><label>Opóźnienie startowe [ms]</label><input id="qrStartupCommandDelayMs" type="number"></div><div><label>Przerwa między komendami [ms]</label><input id="qrInterCommandDelayMs" type="number"></div><div><label>Maks. długość ramki</label><input id="qrMaxFrameLength" type="number"></div><div><label>Discovery</label><select id="discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div></div><div class="actions" style="margin-top:14px"><button class="btn blue" onclick="saveConfig()">Zapisz konfigurację</button></div></div>
+<div class="grid" style="margin-top:16px">
+<div class="card"><h2>GM805-L · presety i pełne komendy HEX</h2><div class="muted small">Wbudowane przyciski dodają gotowe komendy z manuala. Każdą inną opcję z GM805-L wklejasz poniżej jako osobną linię HEX. Komentarz po <span class="kbd">#</span> jest ignorowany.</div><div class="preset-list actions" style="margin-top:12px"><button class="btn light" onclick="appendPreset('Baud 9600')">Baud 9600</button><button class="btn light" onclick="appendPreset('Find baud')">Find baud</button><button class="btn light" onclick="appendPreset('Continuous profile')">Continuous</button><button class="btn light" onclick="appendPreset('Trigger mode')">Trigger mode</button><button class="btn light" onclick="appendPreset('Full area + all barcodes')">Full area</button><button class="btn light" onclick="appendPreset('Allow Code39')">Code39</button><button class="btn light" onclick="appendPreset('AIM ID on')">AIM ID on</button><button class="btn light" onclick="appendPreset('AIM ID off')">AIM ID off</button><button class="btn light" onclick="appendPreset('Save Flash')">Save Flash</button></div><label style="margin-top:12px">Startup commands HEX</label><textarea id="qrStartupCommandsHex" class="mono" placeholder="7E 00 08 02 00 2A 39 01 A7 EA # baud 9600&#10;7E 00 08 01 00 02 01 AB CD # trigger mode"></textarea><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="applyQrStartupNow()">Wyślij startup teraz</button><button class="btn orange" onclick="saveQrFlashNow()">Save to flash teraz</button><button class="btn gray" onclick="clearQrCommands()">Wyczyść</button></div><div class="row" style="margin-top:12px"><div><label>Jednorazowa komenda HEX</label><input id="qrHexNow" class="mono" placeholder="7E 00 08 01 00 D0 80 AB CD"></div><div><label>&nbsp;</label><button class="btn blue" onclick="sendQrHexNow()">Wyślij teraz</button></div></div><div class="small muted" style="margin-top:12px">Obsługiwane są też wszystkie pozostałe komendy producenta, o ile wpiszesz ich dokładny HEX z manuala GM805-L.</div></div>
+<div class="card"><h2>QR runtime</h2><div id="qrLive" class="mono">-</div><div class="row" style="margin-top:12px"><div><label>Ostatnia komenda HEX</label><input id="qrLastCommandHex" readonly class="mono"></div><div><label>Status komendy</label><input id="qrLastCommandStatus" readonly></div></div><div class="small muted" style="margin-top:12px">Jeżeli skaner pracuje po UART TTL, odczyt trafia do runtime JSON, status TXT i opcjonalnie do TCP z prefixem ustawionym wyżej.</div></div>
+</div>
 <div class="grid" style="margin-top:16px"><div class="card"><h2>Runtime JSON</h2><textarea id="runtimeBox" class="mono" readonly></textarea></div><div class="card"><h2>Status TXT</h2><textarea id="statusBox" class="mono" readonly></textarea></div></div>
 </div>
 <script>
+const GM805_PRESETS={
+ 'Baud 9600':'7E 00 08 02 00 2A 39 01 A7 EA',
+ 'Save Flash':'7E 00 09 01 00 00 00 DE C8',
+ 'Find baud':'7E 00 07 01 00 2A 02 D8 0F',
+ 'Continuous profile':'7E 00 08 01 00 00 D6 AB CD',
+ 'Trigger mode':'7E 00 08 01 00 02 01 AB CD',
+ 'Full area + all barcodes':'7E 00 08 01 00 2C 02 AB CD',
+ 'Allow Code39':'7E 00 08 01 00 36 01 AB CD',
+ 'AIM ID on':'7E 00 08 01 00 D0 80 AB CD',
+ 'AIM ID off':'7E 00 08 01 00 D0 00 AB CD'
+};
 function openUrl(url){ window.open(url,'_blank'); }
 async function getJson(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(url+' '+r.status); return r.json(); }
 async function getText(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(url+' '+r.status); return r.text(); }
@@ -382,15 +435,61 @@ async function reboot(){ if(confirm('Uruchomić urządzenie ponownie?')) await f
 async function buzz(){ await fetch('/api/output/buzzer?ms=120',{method:'POST'}); await refresh(); }
 async function sendKey(){ await post('/api/keypad/key', document.getElementById('virtKey').value); }
 async function sendCode(){ await post('/api/keypad/code', document.getElementById('virtCode').value); }
+function appendPreset(name){ const area=document.getElementById('qrStartupCommandsHex'); const line=GM805_PRESETS[name] + ' # ' + name; area.value=(area.value.trim()?area.value.trim()+'\n':'')+line; }
+function clearQrCommands(){ document.getElementById('qrStartupCommandsHex').value=''; }
+async function sendQrHexNow(){ const value=document.getElementById('qrHexNow').value.trim(); if(!value) return; await post('/api/qr/command','HEX:'+value); }
+async function applyQrStartupNow(){ await post('/api/qr/apply-startup'); }
+async function saveQrFlashNow(){ await post('/api/qr/save-flash'); }
 async function saveConfig(){
- const payload={deviceName:deviceName.value.trim(),mode:networkMode.value,contrast:Number(contrast.value||0),rfidEnabled:rfidEnabled.value==='true',keypadEnabled:keypadEnabled.value==='true',qrEnabled:qrEnabled.value==='true'};
- const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) throw new Error('save '+r.status); await refresh(); alert('Zapisano. Wymagany restart, aby przeładować konfigurację runtime.');
+ const payload={
+  deviceName:deviceName.value.trim(),
+  mode:networkMode.value,
+  contrast:Number(contrast.value||0),
+  rfidEnabled:rfidEnabled.value==='true',
+  keypadEnabled:keypadEnabled.value==='true',
+  qrEnabled:qrEnabled.value==='true',
+  qrBaudRate:Number(qrBaudRate.value||9600),
+  qrSendToTcp:qrSendToTcp.value==='true',
+  qrPublishToWeb:qrPublishToWeb.value==='true',
+  qrApplyStartupCommands:qrApplyStartupCommands.value==='true',
+  qrSaveToFlashAfterApply:qrSaveToFlashAfterApply.value==='true',
+  qrStartupCommandDelayMs:Number(qrStartupCommandDelayMs.value||0),
+  qrInterCommandDelayMs:Number(qrInterCommandDelayMs.value||0),
+  qrMaxFrameLength:Number(qrMaxFrameLength.value||256),
+  qrLinePrefix:qrLinePrefix.value.trim(),
+  qrStartupCommandsHex:qrStartupCommandsHex.value,
+  discoveryEnabled:discoveryEnabled.value==='true'
+ };
+ const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ if(!r.ok) throw new Error('save '+r.status);
+ await refresh();
+ alert('Zapisano. Zmiany runtime dla UART/GM805 zastosuj po restarcie albo użyj przycisku "Wyślij startup teraz".');
 }
 async function refresh(){
  const [cfg,rt,txt]=await Promise.all([getJson('/api/config'),getJson('/api/runtime'),getText('/status')]);
- deviceName.value=cfg.network.deviceName||''; networkMode.value=cfg.network.mode||'dhcp'; contrast.value=cfg.display.contrast||180; rfidEnabled.value=String(cfg.rfid.enabled); keypadEnabled.value=String(cfg.keypad.enabled); qrEnabled.value=String(cfg.qr.enabled);
- runtimeBox.value=JSON.stringify(rt,null,2); statusBox.value=txt;
- runtimePills.innerHTML='<span class="pill">flow: '+(rt.flowActive?'AKTYWNY':'IDLE')+'</span> <span class="pill">krok: '+(rt.flowStep||'-')+'</span> <span class="pill">moduły: '+(rt.flowModules||'-')+'</span>';
+ deviceName.value=cfg.network.deviceName||'';
+ networkMode.value=cfg.network.mode||'dhcp';
+ contrast.value=cfg.display.contrast||180;
+ rfidEnabled.value=String(cfg.rfid.enabled);
+ keypadEnabled.value=String(cfg.keypad.enabled);
+ qrEnabled.value=String(cfg.qr.enabled);
+ qrBaudRate.value=cfg.qr.baudRate||9600;
+ qrSendToTcp.value=String(cfg.qr.sendToTcp);
+ qrPublishToWeb.value=String(cfg.qr.publishToWeb);
+ qrApplyStartupCommands.value=String(cfg.qr.applyStartupCommands);
+ qrSaveToFlashAfterApply.value=String(cfg.qr.saveToFlashAfterApply);
+ qrStartupCommandDelayMs.value=cfg.qr.startupCommandDelayMs||120;
+ qrInterCommandDelayMs.value=cfg.qr.interCommandDelayMs||80;
+ qrMaxFrameLength.value=cfg.qr.maxFrameLength||256;
+ qrLinePrefix.value=cfg.qr.linePrefix||'QR:';
+ qrStartupCommandsHex.value=cfg.qr.startupCommandsHex||'';
+ discoveryEnabled.value=String(cfg.discovery.enabled);
+ runtimeBox.value=JSON.stringify(rt,null,2);
+ statusBox.value=txt;
+ qrLive.textContent=(rt.qrLast||'-') + ' | prefix=' + (rt.qrPrefix||'QR:');
+ qrLastCommandHex.value=rt.qrLastCommandHex||'';
+ qrLastCommandStatus.value=rt.qrLastCommandStatus||'';
+ runtimePills.innerHTML='<span class="pill">flow: '+(rt.flowActive?'AKTYWNY':'IDLE')+'</span> <span class="pill">krok: '+(rt.flowStep||'-')+'</span> <span class="pill">moduły: '+(rt.flowModules||'-')+'</span> <span class="pill">qr: '+(rt.qrLast||'-')+'</span>';
 }
 refresh(); setInterval(refresh,3000);
 </script></body></html>
@@ -483,6 +582,15 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body,
 
     cfg.qr.enabled = parseBoolField(body, "qrEnabled", cfg.qr.enabled);
     cfg.qr.baudRate = parseUInt32Field(body, "qrBaudRate", cfg.qr.baudRate);
+    cfg.qr.sendToTcp = parseBoolField(body, "qrSendToTcp", cfg.qr.sendToTcp);
+    cfg.qr.publishToWeb = parseBoolField(body, "qrPublishToWeb", cfg.qr.publishToWeb);
+    cfg.qr.applyStartupCommands = parseBoolField(body, "qrApplyStartupCommands", cfg.qr.applyStartupCommands);
+    cfg.qr.saveToFlashAfterApply = parseBoolField(body, "qrSaveToFlashAfterApply", cfg.qr.saveToFlashAfterApply);
+    cfg.qr.startupCommandDelayMs = parseUInt16Field(body, "qrStartupCommandDelayMs", cfg.qr.startupCommandDelayMs);
+    cfg.qr.interCommandDelayMs = parseUInt16Field(body, "qrInterCommandDelayMs", cfg.qr.interCommandDelayMs);
+    cfg.qr.maxFrameLength = parseUInt16Field(body, "qrMaxFrameLength", cfg.qr.maxFrameLength);
+    cfg.qr.linePrefix = parseStringField(body, "qrLinePrefix", cfg.qr.linePrefix);
+    cfg.qr.startupCommandsHex = parseStringField(body, "qrStartupCommandsHex", cfg.qr.startupCommandsHex);
 
     cfg.display.enabled = parseBoolField(body, "displayEnabled", cfg.display.enabled);
     cfg.display.contrast = static_cast<uint8_t>(parseUInt16Field(body, "contrast", cfg.display.contrast));

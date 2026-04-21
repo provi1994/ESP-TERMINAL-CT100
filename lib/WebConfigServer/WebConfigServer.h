@@ -25,6 +25,7 @@ public:
     void onVirtualCode(std::function<void(const String&)> callback);
     void onFlowStart(std::function<void()> callback);
     void onFlowCancel(std::function<void()> callback);
+    void onQrCommand(std::function<void(const String&)> callback);
 
     void setConfigProvider(std::function<DeviceConfig()> provider);
     void setStatusProvider(std::function<String()> provider);
@@ -41,6 +42,7 @@ private:
     std::function<void(const String&)> onVirtualCode_;
     std::function<void()> onFlowStart_;
     std::function<void()> onFlowCancel_;
+    std::function<void(const String&)> onQrCommand_;
     std::function<DeviceConfig()> configProvider_;
     std::function<String()> statusProvider_;
     std::function<String()> runtimeJsonProvider_;
@@ -73,6 +75,9 @@ private:
     void handleApiVirtualCode();
     void handleApiFlowStart();
     void handleApiFlowCancel();
+    void handleApiQrCommand();
+    void handleApiQrApplyStartup();
+    void handleApiQrSaveFlash();
 
     void handleFirmwarePage();
     void handleFirmwareUpload();
