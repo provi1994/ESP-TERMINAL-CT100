@@ -12,8 +12,8 @@ static constexpr int RFID_RX = 5;
 static constexpr int RFID_TX = -1; // nieużywany
 
 // QR / skaner kodów
-static constexpr int QR_RX = 35;
-static constexpr int QR_TX = 2;   // dobrany jako wolny TX dla GM805-L; wymaga weryfikacji na docelowym hardware
+static constexpr int QR_RX = 36;   // zmiana z 35 -> 36
+static constexpr int QR_TX = 2;    // TX z ESP do RX skanera
 
 // 74HC595
 static constexpr int SHIFT595_DATA = 17;  // DS

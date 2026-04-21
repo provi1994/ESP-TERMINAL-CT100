@@ -5,11 +5,7 @@
 #include "ConfigManager.h"
 #include "LogManager.h"
 
-enum class WebUserRole : uint8_t {
-    NONE = 0,
-    SERVICE = 1,
-    ADMIN = 2
-};
+enum class WebUserRole : uint8_t { NONE = 0, SERVICE = 1, ADMIN = 2 };
 
 class WebConfigServer {
 public:
@@ -89,6 +85,7 @@ private:
     void applyConfigFromJson(DeviceConfig& cfg, const String& body, bool allowSecurity) const;
 
     static String jsonEscape(const String& value);
+    static String jsonUnescape(const String& value);
     static bool parseBoolField(const String& body, const String& key, bool fallback);
     static uint16_t parseUInt16Field(const String& body, const String& key, uint16_t fallback);
     static uint32_t parseUInt32Field(const String& body, const String& key, uint32_t fallback);

@@ -143,12 +143,27 @@ static void qrApplyStartupCommands() {
 static void beepBuzzer(unsigned long durationMs);
 static void updateFlowStep();
 
+static String qrPreviewForLcd(const String& value, size_t maxLen = 18) {
+    String out = trimCopy(value);
+    if (out.length() > maxLen) out = out.substring(0, maxLen - 3) + "...";
+    return out;
+}
+
+static String idleHintText() {
+    if (!qrLastPublished.isEmpty()) return "QR: " + qrPreviewForLcd(qrLastPublished, 14);
+    return "Zbliz karte RFID";
+}
+
 static void qrPublishDecoded(const String& value) {
+    qrLastData = value;
     qrLastPublished = value;
     const String prefix = normalizeQrLinePrefix(cfg.qr.linePrefix);
     const String payload = prefix + value;
     lastOutboundFrame = payload;
     if (cfg.qr.sendToTcp) tcpManager.sendLine(payload);
+    lcdCustomText = String("QR:") + "\n" + qrPreviewForLcd(value, 24);
+    lcdCustomUntil = millis() + 7000UL;
+    if (cfg.display.enabled) display.showTcp(lcdCustomText);
     beepBuzzer(60);
     logger.info("QR: " + value);
     if (flow.active && flow.currentStep == "QR") { flow.qrDone = true; updateFlowStep(); }
@@ -326,7 +341,7 @@ static void renderFlowScreen() {
         display.showSummaryScreen(
             String("RFID: ") + (lastCard.isEmpty() ? "-" : lastCard),
             String("KEY: ") + (lastWebCode.isEmpty() ? lastKey : lastWebCode),
-            String("QR: ") + (qrLastData.isEmpty() ? "-" : qrLastData),
+            String("QR: ") + (qrLastPublished.isEmpty() ? (qrLastData.isEmpty() ? "-" : qrLastData) : qrLastPublished),
             buildWeightForDisplay());
         return;
     }
@@ -586,7 +601,7 @@ void loop() {
         } else if (lcdCustomUntil > millis()) {
             display.showTcp(lcdCustomText);
         } else {
-            display.showIdleWeight(activeHeaderText(), buildWeightForDisplay(), "Zbliz karte RFID");
+            display.showIdleWeight(activeHeaderText(), buildWeightForDisplay(), idleHintText());
         }
     }
 }

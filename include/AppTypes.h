@@ -2,23 +2,9 @@
 #include <Arduino.h>
 #include <IPAddress.h>
 
-enum class NetworkMode : uint8_t {
-    DHCP = 0,
-    STATIC = 1
-};
-
-enum class TcpMode : uint8_t {
-    CLIENT = 0,
-    HOST = 1,
-    SERVER = 2
-};
-
-enum class RfidEncoding : uint8_t {
-    HEX_MODE = 0,
-    DEC_MODE = 1,
-    RAW_MODE = 2,
-    SCALE_FRAME_MODE = 3
-};
+enum class NetworkMode : uint8_t { DHCP = 0, STATIC = 1 };
+enum class TcpMode : uint8_t { CLIENT = 0, HOST = 1, SERVER = 2 };
+enum class RfidEncoding : uint8_t { HEX_MODE = 0, DEC_MODE = 1, RAW_MODE = 2, SCALE_FRAME_MODE = 3 };
 
 struct NetworkSettings {
     String deviceName = "ct100-terminal";
@@ -35,6 +21,9 @@ struct TcpSettings {
     String serverIp = "192.168.1.10";
     uint16_t serverPort = 7000;
     uint16_t listenPort = 7000;
+    bool autoReconnect = true;
+    uint16_t reconnectIntervalMs = 5000;
+    uint16_t connectTimeoutMs = 350;
 };
 
 struct ScaleTcpSettings {
@@ -43,6 +32,9 @@ struct ScaleTcpSettings {
     String serverIp = "192.168.1.20";
     uint16_t serverPort = 4001;
     uint16_t listenPort = 4001;
+    bool autoReconnect = true;
+    uint16_t reconnectIntervalMs = 5000;
+    uint16_t connectTimeoutMs = 350;
 };
 
 struct SecuritySettings {
@@ -70,7 +62,7 @@ struct QrSettings {
     uint16_t interCommandDelayMs = 80;
     uint16_t maxFrameLength = 256;
     String linePrefix = "QR:";
-    String startupCommandsHex = ""; // Jedna komenda HEX na linię. Spacje dozwolone.
+    String startupCommandsHex = "";
 };
 
 struct FlowSettings {
@@ -100,43 +92,20 @@ struct FlowScreenSettings {
     String hint;
 
     FlowScreenSettings()
-        : enabled(true),
-          order(1),
-          name("Ekran"),
-          title(""),
-          line1(""),
-          line2(""),
-          hint("") {}
+        : enabled(true), order(1), name("Ekran"), title(""), line1(""), line2(""), hint("") {}
 
-    FlowScreenSettings(
-        bool enabled_,
-        uint8_t order_,
-        const String& name_,
-        const String& title_,
-        const String& line1_,
-        const String& line2_,
-        const String& hint_)
-        : enabled(enabled_),
-          order(order_),
-          name(name_),
-          title(title_),
-          line1(line1_),
-          line2(line2_),
-          hint(hint_) {}
+    FlowScreenSettings(bool enabled_, uint8_t order_, const String& name_, const String& title_, const String& line1_, const String& line2_, const String& hint_)
+        : enabled(enabled_), order(order_), name(name_), title(title_), line1(line1_), line2(line2_), hint(hint_) {}
 };
 
 struct DisplaySettings {
     bool enabled = true;
     uint8_t contrast = 180;
     FlowSettings flow;
-    FlowScreenSettings screen1 = FlowScreenSettings(
-        true, 1, "Ekran 1", "ODBIJ KARTE", "Zbliz karte RFID", "", "Czekam na karte");
-    FlowScreenSettings screen2 = FlowScreenSettings(
-        true, 2, "Ekran 2", "KOD PRODUKTU", "Wprowadz kod", "", "#=OK *=Kasuj");
-    FlowScreenSettings screen3 = FlowScreenSettings(
-        true, 3, "Ekran 3", "SKAN QR", "Zeskanuj kod QR", "", "Czekam na skan");
-    FlowScreenSettings screen4 = FlowScreenSettings(
-        true, 4, "Ekran 4", "PODSUMOWANIE", "Dane gotowe", "", "Wyslij do systemu");
+    FlowScreenSettings screen1 = FlowScreenSettings(true, 1, "Ekran 1", "ODBIJ KARTE", "Zbliz karte RFID", "", "Czekam na karte");
+    FlowScreenSettings screen2 = FlowScreenSettings(true, 2, "Ekran 2", "KOD PRODUKTU", "Wprowadz kod", "", "#=OK *=Kasuj");
+    FlowScreenSettings screen3 = FlowScreenSettings(true, 3, "Ekran 3", "SKAN QR", "Zeskanuj kod QR", "", "Czekam na skan");
+    FlowScreenSettings screen4 = FlowScreenSettings(true, 4, "Ekran 4", "PODSUMOWANIE", "Dane gotowe", "", "Wyslij do systemu");
 };
 
 struct KeypadSettings {
