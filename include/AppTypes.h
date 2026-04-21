@@ -59,6 +59,11 @@ struct RfidSettings {
     RfidEncoding encoding = RfidEncoding::HEX_MODE;
 };
 
+struct QrSettings {
+    bool enabled = true;
+    uint32_t baudRate = 9600;
+};
+
 struct FlowSettings {
     bool enabled;
     bool remoteTriggerEnabled;
@@ -114,23 +119,15 @@ struct FlowScreenSettings {
 struct DisplaySettings {
     bool enabled = true;
     uint8_t contrast = 180;
-
-    // Konfiguracja pełnej sekwencji ekranów LCD.
     FlowSettings flow;
-
-    // Cztery konfigurowalne ekrany, które runtime może włączać,
-    // wyłączać i porządkować według pola order.
     FlowScreenSettings screen1 = FlowScreenSettings(
         true, 1, "Ekran 1", "ODBIJ KARTE", "Zbliz karte RFID", "", "Czekam na karte");
-
     FlowScreenSettings screen2 = FlowScreenSettings(
         true, 2, "Ekran 2", "KOD PRODUKTU", "Wprowadz kod", "", "#=OK *=Kasuj");
-
     FlowScreenSettings screen3 = FlowScreenSettings(
-        true, 3, "Ekran 3", "PODSUMOWANIE", "Dane odczytane", "", "Sprawdz dane");
-
+        true, 3, "Ekran 3", "SKAN QR", "Zeskanuj kod QR", "", "Czekam na skan");
     FlowScreenSettings screen4 = FlowScreenSettings(
-        true, 4, "Ekran 4", "GOTOWE", "Mozna kontynuowac", "", "Oczekiwanie...");
+        true, 4, "Ekran 4", "PODSUMOWANIE", "Dane gotowe", "", "Wyslij do systemu");
 };
 
 struct KeypadSettings {
@@ -149,6 +146,7 @@ struct DeviceConfig {
     ScaleTcpSettings scaleTcp;
     SecuritySettings security;
     RfidSettings rfid;
+    QrSettings qr;
     DisplaySettings display;
     KeypadSettings keypad;
     DiscoverySettings discovery;

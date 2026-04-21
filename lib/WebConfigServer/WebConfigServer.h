@@ -23,6 +23,8 @@ public:
     void onOutputCommand(std::function<void(const String&)> callback);
     void onVirtualKey(std::function<void(const String&)> callback);
     void onVirtualCode(std::function<void(const String&)> callback);
+    void onFlowStart(std::function<void()> callback);
+    void onFlowCancel(std::function<void()> callback);
 
     void setConfigProvider(std::function<DeviceConfig()> provider);
     void setStatusProvider(std::function<String()> provider);
@@ -37,6 +39,8 @@ private:
     std::function<void(const String&)> onOutputCommand_;
     std::function<void(const String&)> onVirtualKey_;
     std::function<void(const String&)> onVirtualCode_;
+    std::function<void()> onFlowStart_;
+    std::function<void()> onFlowCancel_;
     std::function<DeviceConfig()> configProvider_;
     std::function<String()> statusProvider_;
     std::function<String()> runtimeJsonProvider_;
@@ -67,6 +71,8 @@ private:
 
     void handleApiVirtualKey();
     void handleApiVirtualCode();
+    void handleApiFlowStart();
+    void handleApiFlowCancel();
 
     void handleFirmwarePage();
     void handleFirmwareUpload();

@@ -54,10 +54,21 @@ BootScreenPhase bootPhase = BootScreenPhase::DONE;
 bool keypadDetected = false;
 String rfidStatus = "OFF";
 
+struct FlowRuntime {
+    bool active = false;
+    bool completed = false;
+    bool rfidDone = false;
+    bool keypadDone = false;
+    bool qrDone = false;
+    unsigned long startedAt = 0;
+    unsigned long screenUntil = 0;
+    String currentStep = "IDLE";
+    String summary = "";
+} flow;
+
 static String jsonEscapeLocal(const String& value) {
     String out;
     out.reserve(value.length() + 8);
-
     for (size_t i = 0; i < value.length(); ++i) {
         const char c = value[i];
         switch (c) {
@@ -66,37 +77,17 @@ static String jsonEscapeLocal(const String& value) {
             case '\n': out += "\\n"; break;
             case '\r': out += "\\r"; break;
             case '\t': out += "\\t"; break;
-            default:
-                if ((uint8_t)c >= 32) out += c;
-                break;
+            default: if ((uint8_t)c >= 32) out += c; break;
         }
     }
     return out;
 }
 
-static bool toPhysicalLevel(bool logicalState, bool activeLow) {
-    return activeLow ? !logicalState : logicalState;
-}
-
-static void setOut1(bool logicalState) {
-    out1State = logicalState;
-    outputs595.setBit(Pins::OUT1_BIT, toPhysicalLevel(logicalState, Pins::OUT1_ACTIVE_LOW));
-}
-
-static void setOut2(bool logicalState) {
-    out2State = logicalState;
-    outputs595.setBit(Pins::OUT2_BIT, toPhysicalLevel(logicalState, Pins::OUT2_ACTIVE_LOW));
-}
-
-static void setBuzzer(bool logicalState) {
-    buzzerState = logicalState;
-    outputs595.setBit(Pins::BUZZER_BIT, toPhysicalLevel(logicalState, Pins::BUZZER_ACTIVE_LOW));
-}
-
-static void beepBuzzer(unsigned long durationMs) {
-    setBuzzer(true);
-    buzzerOffAt = millis() + durationMs;
-}
+static bool toPhysicalLevel(bool logicalState, bool activeLow) { return activeLow ? !logicalState : logicalState; }
+static void setOut1(bool logicalState) { out1State = logicalState; outputs595.setBit(Pins::OUT1_BIT, toPhysicalLevel(logicalState, Pins::OUT1_ACTIVE_LOW)); }
+static void setOut2(bool logicalState) { out2State = logicalState; outputs595.setBit(Pins::OUT2_BIT, toPhysicalLevel(logicalState, Pins::OUT2_ACTIVE_LOW)); }
+static void setBuzzer(bool logicalState) { buzzerState = logicalState; outputs595.setBit(Pins::BUZZER_BIT, toPhysicalLevel(logicalState, Pins::BUZZER_ACTIVE_LOW)); }
+static void beepBuzzer(unsigned long durationMs) { setBuzzer(true); buzzerOffAt = millis() + durationMs; }
 
 static String activeHeaderText() {
     if (remoteStatusUntil > millis() && !remoteStatusText.isEmpty()) return remoteStatusText;
@@ -106,26 +97,61 @@ static String activeHeaderText() {
 static String sanitizeWeightDigits(const String& raw) {
     String digits;
     digits.reserve(raw.length());
-
-    for (size_t i = 0; i < raw.length(); ++i) {
-        if (isDigit(raw[i])) digits += raw[i];
-    }
-
-    while (digits.length() > 1 && digits[0] == '0') {
-        digits.remove(0, 1);
-    }
-
+    for (size_t i = 0; i < raw.length(); ++i) if (isDigit(raw[i])) digits += raw[i];
+    while (digits.length() > 1 && digits[0] == '0') digits.remove(0, 1);
     return digits;
 }
 
 static String buildWeightForDisplay() {
     const bool scaleConnected = cfg.scaleTcp.enabled && (scaleTcpManager.isConnected() || scaleTcpManager.hasClient());
     const bool freshWeight = (millis() - lastWeightAt) <= 5000UL;
-
     if (!cfg.scaleTcp.enabled) return "WAGA OFF";
     if (!scaleConnected || !freshWeight) return "Brak polaczenia z miernikiem";
     if (currentWeight.isEmpty()) return "Brak polaczenia z miernikiem";
     return currentWeight + " KG";
+}
+
+static String buildFlowModules() {
+    String out;
+    if (cfg.rfid.enabled) out += "RFID ";
+    if (cfg.keypad.enabled) out += "KEYPAD ";
+    if (cfg.qr.enabled) out += "QR ";
+    out.trim();
+    if (out.isEmpty()) out = "BRAK";
+    return out;
+}
+
+static void updateFlowStep() {
+    if (!flow.active) {
+        flow.currentStep = "IDLE";
+        return;
+    }
+    if (cfg.rfid.enabled && !flow.rfidDone) { flow.currentStep = "RFID"; return; }
+    if (cfg.keypad.enabled && !flow.keypadDone) { flow.currentStep = "KEYPAD"; return; }
+    if (cfg.qr.enabled && !flow.qrDone) { flow.currentStep = "QR"; return; }
+    flow.currentStep = "SUMMARY";
+    flow.completed = true;
+}
+
+static void startWeighFlow() {
+    flow.active = true;
+    flow.completed = false;
+    flow.rfidDone = !cfg.rfid.enabled;
+    flow.keypadDone = !cfg.keypad.enabled;
+    flow.qrDone = !cfg.qr.enabled;
+    flow.startedAt = millis();
+    flow.screenUntil = 0;
+    flow.summary = "";
+    updateFlowStep();
+    logger.info("Flow started from API/UI");
+}
+
+static void cancelWeighFlow() {
+    flow.active = false;
+    flow.completed = false;
+    flow.currentStep = "IDLE";
+    flow.summary = "anulowano";
+    logger.warn("Flow cancelled from API/UI");
 }
 
 static String buildStatusText() {
@@ -143,6 +169,9 @@ static String buildStatusText() {
     out += "scale_enabled=" + String(cfg.scaleTcp.enabled ? "on" : "off") + "\n";
     out += "scale_tcp_mode=" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\n";
     out += "scale_display=" + buildWeightForDisplay() + "\n";
+    out += "flow_active=" + String(flow.active ? "on" : "off") + "\n";
+    out += "flow_step=" + flow.currentStep + "\n";
+    out += "flow_modules=" + buildFlowModules() + "\n";
     out += "out1=" + String(out1State ? "on" : "off") + "\n";
     out += "out2=" + String(out2State ? "on" : "off") + "\n";
     out += "buzzer=" + String(buzzerState ? "on" : "off") + "\n";
@@ -166,44 +195,50 @@ static String ipText() {
 
 static void renderBootSequence() {
     if (!cfg.display.enabled) return;
-
     const unsigned long elapsed = millis() - bootSequenceStart;
-
-    if (elapsed < 3000UL) {
-        bootPhase = BootScreenPhase::LOGO;
-        display.showLogo();
-        return;
-    }
-
+    if (elapsed < 3000UL) { bootPhase = BootScreenPhase::LOGO; display.showLogo(); return; }
     if (elapsed < 6500UL) {
         bootPhase = BootScreenPhase::MODULES;
-        display.showInfo(
-            "START / MODULY",
-            "RFID: " + rfidStatus,
+        display.showInfo("START / MODULY", "RFID: " + rfidStatus,
             cfg.keypad.enabled ? ("KEYPAD: " + String(keypadDetected ? "OK" : "BRAK")) : "KEYPAD: OFF",
-            "IP: " + ipText(),
-            "NET: " + String(cfg.network.mode == NetworkMode::DHCP ? "DHCP" : "STATIC"));
+            String("QR: ") + (cfg.qr.enabled ? "ON" : "OFF"),
+            "IP: " + ipText());
         return;
     }
-
     if (elapsed < 10000UL) {
         bootPhase = BootScreenPhase::TCP;
-        String cmdLine1 = "CMD: " + tcpModeLabel(cfg.tcp.mode);
-        String cmdLine2 = (cfg.tcp.mode == TcpMode::CLIENT)
-                              ? ("-> " + cfg.tcp.serverIp + ":" + String(cfg.tcp.serverPort))
-                              : ("LISTEN:" + String(cfg.tcp.listenPort));
-        String scaleLine1 = "WAGA: " + String(cfg.scaleTcp.enabled ? tcpModeLabel(cfg.scaleTcp.mode) : "OFF");
-        String scaleLine2 = !cfg.scaleTcp.enabled
-                                ? "-"
-                                : ((cfg.scaleTcp.mode == TcpMode::CLIENT)
-                                       ? ("-> " + cfg.scaleTcp.serverIp + ":" + String(cfg.scaleTcp.serverPort))
-                                       : ("LISTEN:" + String(cfg.scaleTcp.listenPort)));
-
-        display.showInfo("START / TCP", cmdLine1, cmdLine2, scaleLine1, scaleLine2);
+        display.showInfo("START / TCP",
+            "CMD: " + tcpModeLabel(cfg.tcp.mode),
+            "WAGA: " + String(cfg.scaleTcp.enabled ? tcpModeLabel(cfg.scaleTcp.mode) : "OFF"),
+            "FLOW: " + String(cfg.display.flow.enabled ? "ON" : "OFF"),
+            "MOD: " + buildFlowModules());
         return;
     }
-
     bootPhase = BootScreenPhase::DONE;
+}
+
+static void renderFlowScreen() {
+    if (!cfg.display.enabled || !flow.active) return;
+    if (flow.currentStep == "RFID") {
+        display.showRfidPrompt("FLOW / RFID", "Zbliz karte", "Czekam na odczyt");
+        return;
+    }
+    if (flow.currentStep == "KEYPAD") {
+        display.showInputScreen("FLOW / KEY", lastWebCode.isEmpty() ? "----" : lastWebCode, "Wprowadz kod");
+        return;
+    }
+    if (flow.currentStep == "QR") {
+        display.showInputScreen("FLOW / QR", qrLastData.isEmpty() ? "SCAN" : qrLastData, "Zeskanuj kod QR");
+        return;
+    }
+    if (flow.currentStep == "SUMMARY") {
+        display.showSummaryScreen(
+            String("RFID: ") + (lastCard.isEmpty() ? "-" : lastCard),
+            String("KEY: ") + (lastWebCode.isEmpty() ? lastKey : lastWebCode),
+            String("QR: ") + (qrLastData.isEmpty() ? "-" : qrLastData),
+            buildWeightForDisplay());
+        return;
+    }
 }
 
 static void applyRuntimeConfig() {
@@ -231,14 +266,10 @@ static void applyRuntimeConfig() {
         rfidStatus = "OFF";
     }
 
-    Serial1.begin(9600, SERIAL_8N1, Pins::QR_RX, -1);
-
-    keypadDetected = cfg.keypad.enabled
-                         ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL)
-                         : false;
+    Serial1.begin(cfg.qr.baudRate, SERIAL_8N1, Pins::QR_RX, -1);
+    keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
 
     tcpManager.begin(cfg.tcp);
-
     if (cfg.scaleTcp.enabled) {
         TcpSettings s;
         s.mode = cfg.scaleTcp.mode;
@@ -265,33 +296,12 @@ static void applyRuntimeConfig() {
 }
 
 static void handleOutputCommand(const String& cmd, const String& sourceTag) {
-    if (cmd.equalsIgnoreCase("OUT1:ON")) {
-        setOut1(true);
-        logger.info("OUT1=ON " + sourceTag);
-        return;
-    }
-
-    if (cmd.equalsIgnoreCase("OUT1:OFF")) {
-        setOut1(false);
-        logger.info("OUT1=OFF " + sourceTag);
-        return;
-    }
-
-    if (cmd.equalsIgnoreCase("OUT2:ON")) {
-        setOut2(true);
-        logger.info("OUT2=ON " + sourceTag);
-        return;
-    }
-
-    if (cmd.equalsIgnoreCase("OUT2:OFF")) {
-        setOut2(false);
-        logger.info("OUT2=OFF " + sourceTag);
-        return;
-    }
-
+    if (cmd.equalsIgnoreCase("OUT1:ON")) { setOut1(true); logger.info("OUT1=ON " + sourceTag); return; }
+    if (cmd.equalsIgnoreCase("OUT1:OFF")) { setOut1(false); logger.info("OUT1=OFF " + sourceTag); return; }
+    if (cmd.equalsIgnoreCase("OUT2:ON")) { setOut2(true); logger.info("OUT2=ON " + sourceTag); return; }
+    if (cmd.equalsIgnoreCase("OUT2:OFF")) { setOut2(false); logger.info("OUT2=OFF " + sourceTag); return; }
     if (cmd.startsWith("BUZZER:")) {
-        String msText = cmd.substring(7);
-        msText.trim();
+        String msText = cmd.substring(7); msText.trim();
         unsigned long duration = (unsigned long)msText.toInt();
         if (duration == 0) duration = 120;
         if (duration > 5000UL) duration = 5000UL;
@@ -303,34 +313,22 @@ static void handleOutputCommand(const String& cmd, const String& sourceTag) {
 static void handleVirtualKeyFromWeb(const String& key) {
     lastKey = key;
     beepBuzzer(40);
-
     const String payload = "KEY:" + key;
     lastOutboundFrame = payload;
     tcpManager.sendLine(payload);
-
-    if (cfg.display.enabled) {
-        display.showInputScreen("KLAWISZ WWW", key, "Wyslano z panelu");
-        lcdCustomText = key;
-        lcdCustomUntil = millis() + 2500UL;
-    }
-
+    if (cfg.display.enabled) { display.showInputScreen("KLAWISZ WWW", key, "Wyslano z panelu"); lcdCustomText = key; lcdCustomUntil = millis() + 2500UL; }
+    if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; lastWebCode = key; updateFlowStep(); }
     logger.info("Virtual web key: " + key);
 }
 
 static void handleVirtualCodeFromWeb(const String& code) {
     lastWebCode = code;
     beepBuzzer(60);
-
     const String payload = "CODE:" + code;
     lastOutboundFrame = payload;
     tcpManager.sendLine(payload);
-
-    if (cfg.display.enabled) {
-        display.showInputScreen("KOD Z WWW", code, "Wyslano z panelu");
-        lcdCustomText = code;
-        lcdCustomUntil = millis() + 3000UL;
-    }
-
+    if (cfg.display.enabled) { display.showInputScreen("KOD Z WWW", code, "Wyslano z panelu"); lcdCustomText = code; lcdCustomUntil = millis() + 3000UL; }
+    if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; updateFlowStep(); }
     logger.info("Virtual web code: " + code);
 }
 
@@ -341,7 +339,6 @@ void setup() {
 
     configManager.begin();
     cfg = configManager.load();
-
     netManager.begin(cfg.network);
 
     ArduinoOTA.onStart([]() { logger.warn("OTA start"); });
@@ -352,30 +349,22 @@ void setup() {
 
     tcpManager.onLineReceived([](const String& line) {
         lastInboundFrame = line;
-
         if (line.startsWith("LCD:")) {
-            lcdCustomText = line.substring(4);
-            lcdCustomText.trim();
-            lcdCustomUntil = millis() + 5000UL;
+            lcdCustomText = line.substring(4); lcdCustomText.trim(); lcdCustomUntil = millis() + 5000UL;
             if (cfg.display.enabled) display.showTcp(lcdCustomText);
             return;
         }
-
         if (line.startsWith("STATUS:")) {
-            remoteStatusText = line.substring(7);
-            remoteStatusText.trim();
-            if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie";
-            remoteStatusUntil = millis() + 5000UL;
-            return;
+            remoteStatusText = line.substring(7); remoteStatusText.trim(); if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie"; remoteStatusUntil = millis() + 5000UL; return;
         }
-
+        if (line == "FLOW:START") { startWeighFlow(); return; }
+        if (line == "FLOW:CANCEL") { cancelWeighFlow(); return; }
         handleOutputCommand(line, "(TCP)");
     });
 
     scaleTcpManager.onLineReceived([](const String& line) {
         String weight = sanitizeWeightDigits(line);
         if (weight.isEmpty()) return;
-
         currentWeight = weight;
         lastWeightAt = millis();
         lastInboundFrame = "SCALE:" + weight;
@@ -385,21 +374,13 @@ void setup() {
     rfid.onCard([](const String& raw, const String& encoded) {
         lastCard = encoded;
         beepBuzzer(80);
-
         if (cfg.display.enabled) display.showCard(encoded);
-
+        if (flow.active && flow.currentStep == "RFID") { flow.rfidDone = true; updateFlowStep(); }
         if (cfg.rfid.encoding == RfidEncoding::SCALE_FRAME_MODE) {
             const String frame = RfidFrameEncoder::encode(raw, RfidFrameEncoder::Mode::CT100_FRAME);
-            if (frame.isEmpty()) {
-                logger.warn("RFID CT100 frame build failed");
-                return;
-            }
-
-            lastOutboundFrame = frame;
-            tcpManager.sendLine(frame);
-            return;
+            if (frame.isEmpty()) { logger.warn("RFID CT100 frame build failed"); return; }
+            lastOutboundFrame = frame; tcpManager.sendLine(frame); return;
         }
-
         const String payload = "RFID:" + encoded + ";RAW:" + raw;
         lastOutboundFrame = payload;
         tcpManager.sendLine(payload);
@@ -408,20 +389,18 @@ void setup() {
     keypad.onKey([](char key) {
         lastKey = String(key);
         beepBuzzer(40);
-
         const String payload = "KEY:" + String(key);
         lastOutboundFrame = payload;
         tcpManager.sendLine(payload);
+        if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; updateFlowStep(); }
     });
 
     webServer.setConfigProvider([]() { return cfg; });
     webServer.setStatusProvider([]() { return buildStatusText(); });
-
     webServer.setRuntimeJsonProvider([]() {
         String out;
         const bool cmdTcpConnected = tcpManager.isConnected() || tcpManager.hasClient();
         const bool scaleConnected = cfg.scaleTcp.enabled && (scaleTcpManager.isConnected() || scaleTcpManager.hasClient());
-
         out += "{";
         out += "\"ip\":\"" + jsonEscapeLocal(netManager.localIP().toString()) + "\",";
         out += "\"uptimeMs\":" + String(millis()) + ",";
@@ -437,14 +416,17 @@ void setup() {
         out += "\"scaleTcpLast\":\"" + jsonEscapeLocal(buildWeightForDisplay()) + "\",";
         out += "\"keypadDetected\":" + String(keypadDetected ? "true" : "false") + ",";
         out += "\"rfidEnabled\":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
+        out += "\"qrEnabled\":" + String(cfg.qr.enabled ? "true" : "false") + ",";
         out += "\"displayEnabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
         out += "\"keypadEnabled\":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
         out += "\"discoveryEnabled\":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
         out += "\"out1\":" + String(out1State ? "true" : "false") + ",";
         out += "\"out2\":" + String(out2State ? "true" : "false") + ",";
-        out += "\"buzzer\":" + String(buzzerState ? "true" : "false");
+        out += "\"buzzer\":" + String(buzzerState ? "true" : "false") + ",";
+        out += "\"flowActive\":" + String(flow.active ? "true" : "false") + ",";
+        out += "\"flowStep\":\"" + jsonEscapeLocal(flow.currentStep) + "\",";
+        out += "\"flowModules\":\"" + jsonEscapeLocal(buildFlowModules()) + "\"";
         out += "}";
-
         return out;
     });
 
@@ -453,19 +435,11 @@ void setup() {
         cfg = newCfg;
         logger.warn("Config persisted. Restart required.");
     });
-
-    webServer.onOutputCommand([](const String& cmd) {
-        handleOutputCommand(cmd, "(WEB)");
-    });
-
-    webServer.onVirtualKey([](const String& key) {
-        handleVirtualKeyFromWeb(key);
-    });
-
-    webServer.onVirtualCode([](const String& code) {
-        handleVirtualCodeFromWeb(code);
-    });
-
+    webServer.onOutputCommand([](const String& cmd) { handleOutputCommand(cmd, "(WEB)"); });
+    webServer.onVirtualKey([](const String& key) { handleVirtualKeyFromWeb(key); });
+    webServer.onVirtualCode([](const String& code) { handleVirtualCodeFromWeb(code); });
+    webServer.onFlowStart([]() { startWeighFlow(); });
+    webServer.onFlowCancel([]() { cancelWeighFlow(); });
     webServer.onReboot([]() { ESP.restart(); });
 }
 
@@ -474,30 +448,29 @@ void loop() {
     netManager.loop();
     webServer.loop();
     tcpManager.loop();
-
     if (cfg.scaleTcp.enabled) scaleTcpManager.loop();
     if (cfg.discovery.enabled) discoveryService.loop();
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();
 
-    while (Serial1.available()) {
-        char c = (char)Serial1.read();
-
-        if (c == '\n' || c == '\r') {
-            if (!qrLastData.isEmpty()) {
-                qrLastData.trim();
+    if (cfg.qr.enabled) {
+        while (Serial1.available()) {
+            char c = (char)Serial1.read();
+            if (c == '\n' || c == '\r') {
                 if (!qrLastData.isEmpty()) {
-                    lastOutboundFrame = "QR:" + qrLastData;
-                    tcpManager.sendLine(lastOutboundFrame);
-                    beepBuzzer(60);
-                    logger.info("QR: " + qrLastData);
+                    qrLastData.trim();
+                    if (!qrLastData.isEmpty()) {
+                        lastOutboundFrame = "QR:" + qrLastData;
+                        tcpManager.sendLine(lastOutboundFrame);
+                        beepBuzzer(60);
+                        logger.info("QR: " + qrLastData);
+                        if (flow.active && flow.currentStep == "QR") { flow.qrDone = true; updateFlowStep(); }
+                    }
+                    qrLastData = "";
                 }
-                qrLastData = "";
-            }
-        } else if (isPrintable((int)c)) {
-            qrLastData += c;
-            if (qrLastData.length() > 256) {
-                qrLastData.remove(0, qrLastData.length() - 256);
+            } else if (isPrintable((int)c)) {
+                qrLastData += c;
+                if (qrLastData.length() > 256) qrLastData.remove(0, qrLastData.length() - 256);
             }
         }
     }
@@ -509,16 +482,14 @@ void loop() {
 
     if (cfg.display.enabled && millis() - lastStatusRefresh > 250UL) {
         lastStatusRefresh = millis();
-
         if (bootPhase != BootScreenPhase::DONE) {
             renderBootSequence();
+        } else if (flow.active) {
+            renderFlowScreen();
         } else if (lcdCustomUntil > millis()) {
             display.showTcp(lcdCustomText);
         } else {
-            display.showIdleWeight(
-                activeHeaderText(),
-                buildWeightForDisplay(),
-                "Zbliz karte RFID");
+            display.showIdleWeight(activeHeaderText(), buildWeightForDisplay(), "Zbliz karte RFID");
         }
     }
 }

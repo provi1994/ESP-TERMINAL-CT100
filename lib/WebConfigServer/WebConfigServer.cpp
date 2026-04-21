@@ -24,6 +24,8 @@ void WebConfigServer::begin(const DeviceConfig& config) {
     server_.on("/api/config", HTTP_GET, [this]() { handleApiConfigGet(); });
     server_.on("/api/config", HTTP_POST, [this]() { handleApiConfigPost(); });
     server_.on("/api/runtime", HTTP_GET, [this]() { handleApiRuntimeGet(); });
+    server_.on("/api/flow/start", HTTP_POST, [this]() { handleApiFlowStart(); });
+    server_.on("/api/flow/cancel", HTTP_POST, [this]() { handleApiFlowCancel(); });
 
     server_.on("/api/output/out1/on", HTTP_POST, [this]() { handleApiOutputOut1On(); });
     server_.on("/api/output/out1/off", HTTP_POST, [this]() { handleApiOutputOut1Off(); });
@@ -61,37 +63,16 @@ void WebConfigServer::loop() {
     server_.handleClient();
 }
 
-void WebConfigServer::onSave(std::function<void(DeviceConfig)> callback) {
-    onSave_ = callback;
-}
-
-void WebConfigServer::onReboot(std::function<void()> callback) {
-    onReboot_ = callback;
-}
-
-void WebConfigServer::onOutputCommand(std::function<void(const String&)> callback) {
-    onOutputCommand_ = callback;
-}
-
-void WebConfigServer::onVirtualKey(std::function<void(const String&)> callback) {
-    onVirtualKey_ = callback;
-}
-
-void WebConfigServer::onVirtualCode(std::function<void(const String&)> callback) {
-    onVirtualCode_ = callback;
-}
-
-void WebConfigServer::setConfigProvider(std::function<DeviceConfig()> provider) {
-    configProvider_ = provider;
-}
-
-void WebConfigServer::setStatusProvider(std::function<String()> provider) {
-    statusProvider_ = provider;
-}
-
-void WebConfigServer::setRuntimeJsonProvider(std::function<String()> provider) {
-    runtimeJsonProvider_ = provider;
-}
+void WebConfigServer::onSave(std::function<void(DeviceConfig)> callback) { onSave_ = callback; }
+void WebConfigServer::onReboot(std::function<void()> callback) { onReboot_ = callback; }
+void WebConfigServer::onOutputCommand(std::function<void(const String&)> callback) { onOutputCommand_ = callback; }
+void WebConfigServer::onVirtualKey(std::function<void(const String&)> callback) { onVirtualKey_ = callback; }
+void WebConfigServer::onVirtualCode(std::function<void(const String&)> callback) { onVirtualCode_ = callback; }
+void WebConfigServer::onFlowStart(std::function<void()> callback) { onFlowStart_ = callback; }
+void WebConfigServer::onFlowCancel(std::function<void()> callback) { onFlowCancel_ = callback; }
+void WebConfigServer::setConfigProvider(std::function<DeviceConfig()> provider) { configProvider_ = provider; }
+void WebConfigServer::setStatusProvider(std::function<String()> provider) { statusProvider_ = provider; }
+void WebConfigServer::setRuntimeJsonProvider(std::function<String()> provider) { runtimeJsonProvider_ = provider; }
 
 DeviceConfig WebConfigServer::activeConfig() const {
     return configProvider_ ? configProvider_() : config_;
@@ -99,22 +80,18 @@ DeviceConfig WebConfigServer::activeConfig() const {
 
 WebUserRole WebConfigServer::detectRole() {
     if (!server_.hasHeader("Authorization")) return WebUserRole::NONE;
-
     const String auth = server_.header("Authorization");
     const DeviceConfig cfg = activeConfig();
-
     const String adminCreds = cfg.security.adminUser + ":" + cfg.security.adminPassword;
     const String serviceCreds = cfg.security.serviceUser + ":" + cfg.security.servicePassword;
-
     if (auth == "Basic " + base64::encode(adminCreds)) return WebUserRole::ADMIN;
     if (auth == "Basic " + base64::encode(serviceCreds)) return WebUserRole::SERVICE;
     return WebUserRole::NONE;
 }
 
 String WebConfigServer::currentUserName() {
-    const WebUserRole role = detectRole();
     const DeviceConfig cfg = activeConfig();
-
+    const WebUserRole role = detectRole();
     if (role == WebUserRole::ADMIN) return cfg.security.adminUser;
     if (role == WebUserRole::SERVICE) return cfg.security.serviceUser;
     return "-";
@@ -133,52 +110,39 @@ bool WebConfigServer::isAdmin() {
 
 bool WebConfigServer::authenticate() {
     const DeviceConfig cfg = activeConfig();
-
     if (server_.authenticate(cfg.security.adminUser.c_str(), cfg.security.adminPassword.c_str())) return true;
     if (server_.authenticate(cfg.security.serviceUser.c_str(), cfg.security.servicePassword.c_str())) return true;
-
     server_.requestAuthentication(BASIC_AUTH, "CT-100", "Logowanie wymagane");
     return false;
 }
 
 void WebConfigServer::handleRoot() {
     if (!authenticate()) return;
-    const DeviceConfig cfg = activeConfig();
-    server_.send(200, "text/html; charset=utf-8", buildPage(cfg));
+    server_.send(200, "text/html; charset=utf-8", buildPage(activeConfig()));
 }
 
 void WebConfigServer::handleLogs() {
     if (!authenticate()) return;
-
     String html;
     html.reserve(1200 + logger_.toHtml().length());
     html += "<!doctype html><html lang='pl'><head><meta charset='utf-8'>";
     html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
     html += "<title>CT-100 logi</title>";
-    html += "<style>body{font-family:Arial,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;background:#eef2f5;color:#13202b}"
-            "a{color:#0077C0}pre{white-space:pre-wrap;background:#0f172a;color:#dbe4ee;padding:16px;border-radius:16px;overflow:auto}"
-            ".top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}.btn{background:#0077C0;color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none}</style>";
-    html += "</head><body>";
-    html += "<div class='top'><a class='btn' href='/'>Panel</a><a class='btn' href='/status'>Status TXT</a><a class='btn' href='/logout'>Wyloguj</a></div>";
-    html += "<h1>Logi i diagnostyka</h1><pre>";
+    html += "<style>body{font-family:Arial,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;background:#eef2f5;color:#13202b}a{color:#0077C0}pre{white-space:pre-wrap;background:#0f172a;color:#dbe4ee;padding:16px;border-radius:16px;overflow:auto}.top{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}.btn{background:#0077C0;color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none}</style>";
+    html += "</head><body><div class='top'><a class='btn' href='/'>Panel</a><a class='btn' href='/status'>Status TXT</a><a class='btn' href='/logout'>Wyloguj</a></div><h1>Logi i diagnostyka</h1><pre>";
     html += logger_.toHtml();
     html += "</pre></body></html>";
-
     server_.send(200, "text/html; charset=utf-8", html);
 }
 
 void WebConfigServer::handleStatus() {
     if (!authenticate()) return;
-    const String payload = statusProvider_ ? statusProvider_() : String("Brak danych");
-    server_.send(200, "text/plain; charset=utf-8", payload);
+    server_.send(200, "text/plain; charset=utf-8", statusProvider_ ? statusProvider_() : String("Brak danych"));
 }
 
 void WebConfigServer::handleReboot() {
     if (!authenticate()) return;
-    server_.send(
-        200,
-        "text/html; charset=utf-8",
-        "<h3>Restart</h3><p>Urzadzenie uruchamia sie ponownie.</p><p><a href='/'>Powrot</a></p>");
+    server_.send(200, "text/html; charset=utf-8", "<h3>Restart</h3><p>Urzadzenie uruchamia sie ponownie.</p><p><a href='/'>Powrot</a></p>");
     delay(300);
     if (onReboot_) onReboot_();
 }
@@ -187,151 +151,100 @@ void WebConfigServer::handleLogout() {
     server_.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     server_.sendHeader("Pragma", "no-cache");
     server_.sendHeader("Expires", "0");
-    server_.sendHeader("WWW-Authenticate", "Basic realm="CT-100-logout"");
-    server_.send(
-        401,
-        "text/html; charset=utf-8",
-        "<!doctype html><html lang='pl'><head><meta charset='utf-8'><title>Wylogowano</title></head>"
-        "<body style='font-family:Arial,sans-serif;background:#eef2f5;color:#13202b;padding:24px'>"
-        "<h2>Sesja zamknieta</h2><p>Przegladarka dostala zadanie ponownego logowania.</p>"
-        "<p><a href='/'>Zaloguj ponownie</a></p></body></html>");
+    server_.sendHeader("WWW-Authenticate", "Basic realm=\"CT-100-logout\"");
+    server_.send(401, "text/html; charset=utf-8", "<!doctype html><html><body><h2>Sesja zamknieta</h2><p><a href='/'>Zaloguj ponownie</a></p></body></html>");
 }
 
 void WebConfigServer::handleApiDeviceInfo() {
     if (!authenticate()) return;
-    const DeviceConfig cfg = activeConfig();
-    server_.send(200, "application/json; charset=utf-8", buildDeviceInfoJson(cfg));
+    server_.send(200, "application/json; charset=utf-8", buildDeviceInfoJson(activeConfig()));
 }
 
 void WebConfigServer::handleApiConfigGet() {
     if (!authenticate()) return;
-    const DeviceConfig cfg = activeConfig();
-    server_.send(200, "application/json; charset=utf-8", buildConfigJson(cfg));
+    server_.send(200, "application/json; charset=utf-8", buildConfigJson(activeConfig()));
 }
 
 void WebConfigServer::handleApiRuntimeGet() {
     if (!authenticate()) return;
-    const String payload = runtimeJsonProvider_ ? runtimeJsonProvider_() : String("{}");
-    server_.send(200, "application/json; charset=utf-8", payload);
+    server_.send(200, "application/json; charset=utf-8", runtimeJsonProvider_ ? runtimeJsonProvider_() : String("{}"));
 }
 
 void WebConfigServer::handleApiConfigPost() {
     if (!authenticate()) return;
-
     DeviceConfig cfg = activeConfig();
     const bool allowSecurity = isAdmin();
     applyConfigFromJson(cfg, server_.arg("plain"), allowSecurity);
-
     if (onSave_) onSave_(cfg);
     logger_.warn("Configuration saved from REST API");
-
-    server_.send(
-        200,
-        "application/json; charset=utf-8",
-        String("{"ok":true,"restartRequired":true,"securityEditable":") +
-            (allowSecurity ? "true" : "false") + "}");
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"restartRequired\":true,\"securityEditable\":") + (allowSecurity ? "true" : "false") + "}");
 }
 
-void WebConfigServer::handleApiOutputOut1On() {
-    if (!authenticate()) return;
-    if (onOutputCommand_) onOutputCommand_("OUT1:ON");
-    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT1:ON"}");
-}
-
-void WebConfigServer::handleApiOutputOut1Off() {
-    if (!authenticate()) return;
-    if (onOutputCommand_) onOutputCommand_("OUT1:OFF");
-    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT1:OFF"}");
-}
-
-void WebConfigServer::handleApiOutputOut2On() {
-    if (!authenticate()) return;
-    if (onOutputCommand_) onOutputCommand_("OUT2:ON");
-    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT2:ON"}");
-}
-
-void WebConfigServer::handleApiOutputOut2Off() {
-    if (!authenticate()) return;
-    if (onOutputCommand_) onOutputCommand_("OUT2:OFF");
-    server_.send(200, "application/json; charset=utf-8", "{"ok":true,"cmd":"OUT2:OFF"}");
-}
+void WebConfigServer::handleApiOutputOut1On() { if (!authenticate()) return; if (onOutputCommand_) onOutputCommand_("OUT1:ON"); server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT1:ON\"}"); }
+void WebConfigServer::handleApiOutputOut1Off() { if (!authenticate()) return; if (onOutputCommand_) onOutputCommand_("OUT1:OFF"); server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT1:OFF\"}"); }
+void WebConfigServer::handleApiOutputOut2On() { if (!authenticate()) return; if (onOutputCommand_) onOutputCommand_("OUT2:ON"); server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT2:ON\"}"); }
+void WebConfigServer::handleApiOutputOut2Off() { if (!authenticate()) return; if (onOutputCommand_) onOutputCommand_("OUT2:OFF"); server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"cmd\":\"OUT2:OFF\"}"); }
 
 void WebConfigServer::handleApiOutputBuzzer() {
     if (!authenticate()) return;
-
     String ms = server_.arg("ms");
     ms.trim();
     if (ms.isEmpty()) ms = "120";
-
     if (onOutputCommand_) onOutputCommand_("BUZZER:" + ms);
-
-    server_.send(
-        200,
-        "application/json; charset=utf-8",
-        String("{"ok":true,"cmd":"BUZZER:") + ms + ""}");
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"cmd\":\"BUZZER:") + ms + "\"}");
 }
 
 void WebConfigServer::handleApiVirtualKey() {
     if (!authenticate()) return;
-
     String key = server_.arg("plain");
     if (key.isEmpty()) key = server_.arg("key");
     key.trim();
     if (key.isEmpty()) {
-        server_.send(400, "application/json; charset=utf-8", "{"ok":false,"error":"missing_key"}");
+        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_key\"}");
         return;
     }
-
     if (onVirtualKey_) onVirtualKey_(key);
-    logger_.info("Virtual key from web: " + key);
-    server_.send(200, "application/json; charset=utf-8", String("{"ok":true,"key":"") + jsonEscape(key) + ""}");
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"key\":\"") + jsonEscape(key) + "\"}");
 }
 
 void WebConfigServer::handleApiVirtualCode() {
     if (!authenticate()) return;
-
     String code = server_.arg("plain");
     if (code.isEmpty()) code = server_.arg("code");
     code.trim();
     if (code.isEmpty()) {
-        server_.send(400, "application/json; charset=utf-8", "{"ok":false,"error":"missing_code"}");
+        server_.send(400, "application/json; charset=utf-8", "{\"ok\":false,\"error\":\"missing_code\"}");
         return;
     }
-
     if (onVirtualCode_) onVirtualCode_(code);
-    logger_.info("Virtual code from web: " + code);
-    server_.send(200, "application/json; charset=utf-8", String("{"ok":true,"code":"") + jsonEscape(code) + ""}");
+    server_.send(200, "application/json; charset=utf-8", String("{\"ok\":true,\"code\":\"") + jsonEscape(code) + "\"}");
+}
+
+void WebConfigServer::handleApiFlowStart() {
+    if (!authenticate()) return;
+    if (onFlowStart_) onFlowStart_();
+    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"flow\":\"started\"}");
+}
+
+void WebConfigServer::handleApiFlowCancel() {
+    if (!authenticate()) return;
+    if (onFlowCancel_) onFlowCancel_();
+    server_.send(200, "application/json; charset=utf-8", "{\"ok\":true,\"flow\":\"cancelled\"}");
 }
 
 void WebConfigServer::handleFirmwarePage() {
     if (!authenticate()) return;
-
     String html;
-    html.reserve(2200);
-    html += "<!doctype html><html lang='pl'><head><meta charset='utf-8'>";
-    html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-    html += "<title>Firmware OTA</title>";
-    html += "<style>body{font-family:Arial,sans-serif;max-width:860px;margin:24px auto;padding:0 16px;background:#eef2f5;color:#13202b}"
-            "section{background:#fff;border:1px solid #d9e0e6;border-radius:16px;padding:18px;margin:14px 0}"
-            "button,input{padding:10px}a{color:#0077C0}.btn{background:#0077C0;color:#fff;border:0;border-radius:10px;padding:12px 16px;cursor:pointer}"
-            ".sub{color:#5b6570;line-height:1.45}</style>";
-    html += "</head><body>";
-    html += "<section><h1>Firmware / OTA</h1>";
-    html += "<div class='sub'>Rola: <strong>" + currentRoleName() + "</strong> | Uzytkownik: <strong>" + jsonEscape(currentUserName()) + "</strong></div></section>";
-    html += "<section><h2>Upload pliku .bin</h2>";
-    html += "<form method='POST' action='/firmware/upload' enctype='multipart/form-data' style='margin-top:16px'>";
-    html += "<p><input type='file' name='firmware' accept='.bin' required></p>";
-    html += "<p><button class='btn' type='submit'>Wgraj firmware</button></p>";
-    html += "</form></section><p><a href='/'>Powrot do panelu</a></p></body></html>";
-
+    html += "<!doctype html><html><body style='font-family:Arial,sans-serif;max-width:820px;margin:24px auto'>";
+    html += "<h1>Firmware / OTA</h1><p>Rola: <strong>" + currentRoleName() + "</strong></p>";
+    html += "<form method='POST' action='/firmware/upload' enctype='multipart/form-data'><input type='file' name='firmware' accept='.bin' required><button type='submit'>Wgraj firmware</button></form>";
+    html += "<p><a href='/'>Powrot do panelu</a></p></body></html>";
     server_.send(200, "text/html; charset=utf-8", html);
 }
 
 void WebConfigServer::handleFirmwareUpload() {
     if (!authenticate()) return;
-
     HTTPUpload& upload = server_.upload();
-
     if (upload.status == UPLOAD_FILE_START) {
         logger_.warn("Firmware upload start: " + upload.filename);
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
@@ -344,9 +257,8 @@ void WebConfigServer::handleFirmwareUpload() {
             logger_.error("Firmware write failed");
         }
     } else if (upload.status == UPLOAD_FILE_END) {
-        if (Update.end(true)) {
-            logger_.warn("Firmware upload success");
-        } else {
+        if (Update.end(true)) logger_.warn("Firmware upload success");
+        else {
             Update.printError(Serial);
             logger_.error("Firmware upload failed");
         }
@@ -356,1778 +268,195 @@ void WebConfigServer::handleFirmwareUpload() {
 String WebConfigServer::jsonEscape(const String& value) {
     String out;
     out.reserve(value.length() + 8);
-
     for (size_t i = 0; i < value.length(); ++i) {
         const char c = value[i];
         switch (c) {
-            case '\': out += "\\"; break;
-            case '"': out += "\""; break;
-            case '
-': out += "\n"; break;
-            case '': out += "\r"; break;
-            case '	': out += "\t"; break;
-            default:
-                if ((uint8_t)c >= 32) out += c;
-                break;
+            case '\\': out += "\\\\"; break;
+            case '"': out += "\\\""; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default: if ((uint8_t)c >= 32) out += c; break;
         }
     }
-
     return out;
 }
 
 String WebConfigServer::buildDeviceInfoJson(const DeviceConfig& cfg) {
-    String out;
-    out.reserve(512);
-
-    out += "{";
-    out += ""deviceId":"" + jsonEscape(String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX)) + "",";
-    out += ""deviceName":"" + jsonEscape(cfg.network.deviceName) + "",";
-    out += ""fw":"0.1.0",";
-    out += ""ip":"" + ETH.localIP().toString() + "",";
-    out += ""mac":"" + ETH.macAddress() + "",";
-    out += ""tcpListenPort":" + String(cfg.tcp.listenPort) + ",";
-    out += ""scaleListenPort":" + String(cfg.scaleTcp.listenPort) + ",";
-    out += ""discoveryPort":" + String(cfg.discovery.udpPort) + ",";
-    out += ""currentRole":"" + currentRoleName() + """;
+    String out = "{";
+    out += "\"deviceId\":\"" + jsonEscape(String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX)) + "\",";
+    out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
+    out += "\"fw\":\"0.1.0\",";
+    out += "\"ip\":\"" + ETH.localIP().toString() + "\",";
+    out += "\"mac\":\"" + ETH.macAddress() + "\",";
+    out += "\"tcpListenPort\":" + String(cfg.tcp.listenPort) + ",";
+    out += "\"scaleListenPort\":" + String(cfg.scaleTcp.listenPort) + ",";
+    out += "\"discoveryPort\":" + String(cfg.discovery.udpPort) + ",";
+    out += "\"currentRole\":\"" + currentRoleName() + "\"";
     out += "}";
-
     return out;
 }
 
 String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) {
     const bool admin = isAdmin();
+    String out = "{";
+    out += "\"network\":{";
+    out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
+    out += "\"mode\":\"" + ConfigManager::networkModeToString(cfg.network.mode) + "\",";
+    out += "\"ip\":\"" + cfg.network.ip.toString() + "\",";
+    out += "\"gateway\":\"" + cfg.network.gateway.toString() + "\",";
+    out += "\"subnet\":\"" + cfg.network.subnet.toString() + "\",";
+    out += "\"dns1\":\"" + cfg.network.dns1.toString() + "\",";
+    out += "\"dns2\":\"" + cfg.network.dns2.toString() + "\"},";
 
-    String out;
-    out.reserve(1800);
+    out += "\"tcp\":{";
+    out += "\"mode\":\"" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "\",";
+    out += "\"serverIp\":\"" + jsonEscape(cfg.tcp.serverIp) + "\",";
+    out += "\"serverPort\":" + String(cfg.tcp.serverPort) + ",";
+    out += "\"listenPort\":" + String(cfg.tcp.listenPort) + "},";
 
-    out += "{";
+    out += "\"scaleTcp\":{";
+    out += "\"enabled\":" + String(cfg.scaleTcp.enabled ? "true" : "false") + ",";
+    out += "\"mode\":\"" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "\",";
+    out += "\"serverIp\":\"" + jsonEscape(cfg.scaleTcp.serverIp) + "\",";
+    out += "\"serverPort\":" + String(cfg.scaleTcp.serverPort) + ",";
+    out += "\"listenPort\":" + String(cfg.scaleTcp.listenPort) + "},";
 
-    out += ""network":{";
-    out += ""deviceName":"" + jsonEscape(cfg.network.deviceName) + "",";
-    out += ""mode":"" + ConfigManager::networkModeToString(cfg.network.mode) + "",";
-    out += ""ip":"" + cfg.network.ip.toString() + "",";
-    out += ""gateway":"" + cfg.network.gateway.toString() + "",";
-    out += ""subnet":"" + cfg.network.subnet.toString() + "",";
-    out += ""dns1":"" + cfg.network.dns1.toString() + "",";
-    out += ""dns2":"" + cfg.network.dns2.toString() + """;
+    out += "\"rfid\":{";
+    out += "\"enabled\":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
+    out += "\"baudRate\":" + String(cfg.rfid.baudRate) + ",";
+    out += "\"encoding\":\"" + ConfigManager::rfidEncodingToString(cfg.rfid.encoding) + "\"},";
+
+    out += "\"qr\":{";
+    out += "\"enabled\":" + String(cfg.qr.enabled ? "true" : "false") + ",";
+    out += "\"baudRate\":" + String(cfg.qr.baudRate) + "},";
+
+    out += "\"display\":{";
+    out += "\"enabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
+    out += "\"contrast\":" + String(cfg.display.contrast) + ",";
+    out += "\"flowEnabled\":" + String(cfg.display.flow.enabled ? "true" : "false") + "},";
+
+    out += "\"keypad\":{";
+    out += "\"enabled\":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
+    out += "\"pcf8574Address\":" + String(cfg.keypad.pcf8574Address) + "},";
+
+    out += "\"discovery\":{";
+    out += "\"enabled\":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
+    out += "\"udpPort\":" + String(cfg.discovery.udpPort) + "},";
+
+    out += "\"security\":{";
+    out += "\"serviceUser\":\"" + jsonEscape(cfg.security.serviceUser) + "\"";
+    if (admin) out += ",\"adminUser\":\"" + jsonEscape(cfg.security.adminUser) + "\"";
     out += "},";
 
-    out += ""tcp":{";
-    out += ""mode":"" + ConfigManager::tcpModeToString(cfg.tcp.mode) + "",";
-    out += ""serverIp":"" + jsonEscape(cfg.tcp.serverIp) + "",";
-    out += ""serverPort":" + String(cfg.tcp.serverPort) + ",";
-    out += ""listenPort":" + String(cfg.tcp.listenPort);
-    out += "},";
-
-    out += ""scaleTcp":{";
-    out += ""enabled":" + String(cfg.scaleTcp.enabled ? "true" : "false") + ",";
-    out += ""mode":"" + ConfigManager::tcpModeToString(cfg.scaleTcp.mode) + "",";
-    out += ""serverIp":"" + jsonEscape(cfg.scaleTcp.serverIp) + "",";
-    out += ""serverPort":" + String(cfg.scaleTcp.serverPort) + ",";
-    out += ""listenPort":" + String(cfg.scaleTcp.listenPort);
-    out += "},";
-
-    out += ""rfid":{";
-    out += ""enabled":" + String(cfg.rfid.enabled ? "true" : "false") + ",";
-    out += ""baudRate":" + String(cfg.rfid.baudRate) + ",";
-    out += ""encoding":"" + ConfigManager::rfidEncodingToString(cfg.rfid.encoding) + """;
-    out += "},";
-
-    out += ""display":{";
-    out += ""enabled":" + String(cfg.display.enabled ? "true" : "false") + ",";
-    out += ""contrast":" + String(cfg.display.contrast);
-    out += "},";
-
-    out += ""keypad":{";
-    out += ""enabled":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
-    out += ""pcf8574Address":" + String(cfg.keypad.pcf8574Address);
-    out += "},";
-
-    out += ""discovery":{";
-    out += ""enabled":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
-    out += ""udpPort":" + String(cfg.discovery.udpPort);
-    out += "},";
-
-    out += ""security":{";
-    out += ""serviceUser":"" + jsonEscape(cfg.security.serviceUser) + """;
-    if (admin) {
-        out += ","adminUser":"" + jsonEscape(cfg.security.adminUser) + """;
-    }
-    out += "},";
-
-    out += ""permissions":{";
-    out += ""canEditSecurity":" + String(admin ? "true" : "false");
+    out += "\"permissions\":{\"canEditSecurity\":" + String(admin ? "true" : "false") + "}";
     out += "}";
-
-    out += "}";
-
     return out;
 }
 
 String WebConfigServer::buildPage(const DeviceConfig& cfg) {
+    String html = R"HTML(
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT-100 panel</title>
+<style>
+body{font-family:Arial,sans-serif;background:#eef2f5;color:#13202b;margin:0;padding:18px}
+.wrap{max-width:1280px;margin:0 auto}.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.card{background:#fff;border:1px solid #d9e0e6;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer}.blue{background:#0077C0;color:#fff}.green{background:#119700;color:#fff}.red{background:#A60000;color:#fff}.gray{background:#4B4D4F;color:#fff}.orange{background:#F18A00;color:#fff}.light{background:#fff;color:#13202b;border:1px solid #d9e0e6}label{display:block;font-size:12px;font-weight:700;color:#5b6570;margin-bottom:6px;text-transform:uppercase}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd8e3;border-radius:12px;box-sizing:border-box}textarea{min-height:160px}h1,h2{margin:0 0 8px 0}.muted{color:#5b6570}.actions{display:flex;gap:10px;flex-wrap:wrap}.mono{font-family:monospace}.pill{display:inline-block;padding:5px 10px;background:#e9f4fb;border-radius:999px;font-size:12px;font-weight:700}@media(max-width:980px){.grid,.grid3,.row{grid-template-columns:1fr}}</style>
+</head><body><div class="wrap">
+<div class="top"><div><h1>CT-100 · panel intuicyjny</h1><div class="muted">Rozszerzony webserver: flow ważenia, moduły i diagnostyka.</div></div><div class="actions"><button class="btn light" onclick="openUrl('/status')">Status</button><button class="btn light" onclick="openUrl('/logs')">Logi</button><button class="btn light" onclick="openUrl('/firmware')">Firmware</button><button class="btn red" onclick="reboot()">Restart</button></div></div>
+<div class="grid">
+<div class="card"><h2>Flow ważenia</h2><div class="actions"><button class="btn green" onclick="post('/api/flow/start')">Start ważenia</button><button class="btn red" onclick="post('/api/flow/cancel')">Anuluj flow</button><button class="btn orange" onclick="buzz()">Buzzer</button></div><div style="margin-top:14px" class="muted">Start inicjuje sekwencję LCD. Sekwencja zawiera tylko aktywne moduły: RFID, keyboard, QR.</div><div style="margin-top:14px" id="runtimePills"></div></div>
+<div class="card"><h2>Szybkie sterowanie</h2><div class="actions"><button class="btn green" onclick="post('/api/output/out1/on')">OUT1 ON</button><button class="btn gray" onclick="post('/api/output/out1/off')">OUT1 OFF</button><button class="btn green" onclick="post('/api/output/out2/on')">OUT2 ON</button><button class="btn gray" onclick="post('/api/output/out2/off')">OUT2 OFF</button></div><div style="margin-top:14px" class="row"><div><label>Wirtualny klawisz</label><input id="virtKey" value="F1"></div><div><label>Wirtualny kod</label><input id="virtCode" placeholder="np. 12345"></div></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="sendKey()">Wyślij klawisz</button><button class="btn blue" onclick="sendCode()">Wyślij kod</button></div></div>
+</div>
+<div class="card" style="margin-top:16px"><h2>Konfiguracja modułów</h2><div class="grid3"><div><label>Nazwa urządzenia</label><input id="deviceName"></div><div><label>Tryb sieci</label><select id="networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div><div><label>Kontrast LCD</label><input id="contrast" type="number"></div><div><label>RFID</label><select id="rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Keyboard</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div></div><div class="actions" style="margin-top:14px"><button class="btn blue" onclick="saveConfig()">Zapisz konfigurację</button></div></div>
+<div class="grid" style="margin-top:16px"><div class="card"><h2>Runtime JSON</h2><textarea id="runtimeBox" class="mono" readonly></textarea></div><div class="card"><h2>Status TXT</h2><textarea id="statusBox" class="mono" readonly></textarea></div></div>
+</div>
+<script>
+function openUrl(url){ window.open(url,'_blank'); }
+async function getJson(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(url+' '+r.status); return r.json(); }
+async function getText(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(url+' '+r.status); return r.text(); }
+async function post(url, body){ const opt={method:'POST'}; if(body!==undefined){ opt.headers={'Content-Type':'text/plain;charset=utf-8'}; opt.body=body; } const r=await fetch(url,opt); if(!r.ok) throw new Error(url+' '+r.status); await refresh(); }
+async function reboot(){ if(confirm('Uruchomić urządzenie ponownie?')) await fetch('/reboot',{method:'POST'}); }
+async function buzz(){ await fetch('/api/output/buzzer?ms=120',{method:'POST'}); await refresh(); }
+async function sendKey(){ await post('/api/keypad/key', document.getElementById('virtKey').value); }
+async function sendCode(){ await post('/api/keypad/code', document.getElementById('virtCode').value); }
+async function saveConfig(){
+ const payload={deviceName:deviceName.value.trim(),mode:networkMode.value,contrast:Number(contrast.value||0),rfidEnabled:rfidEnabled.value==='true',keypadEnabled:keypadEnabled.value==='true',qrEnabled:qrEnabled.value==='true'};
+ const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) throw new Error('save '+r.status); await refresh(); alert('Zapisano. Wymagany restart, aby przeładować konfigurację runtime.');
+}
+async function refresh(){
+ const [cfg,rt,txt]=await Promise.all([getJson('/api/config'),getJson('/api/runtime'),getText('/status')]);
+ deviceName.value=cfg.network.deviceName||''; networkMode.value=cfg.network.mode||'dhcp'; contrast.value=cfg.display.contrast||180; rfidEnabled.value=String(cfg.rfid.enabled); keypadEnabled.value=String(cfg.keypad.enabled); qrEnabled.value=String(cfg.qr.enabled);
+ runtimeBox.value=JSON.stringify(rt,null,2); statusBox.value=txt;
+ runtimePills.innerHTML='<span class="pill">flow: '+(rt.flowActive?'AKTYWNY':'IDLE')+'</span> <span class="pill">krok: '+(rt.flowStep||'-')+'</span> <span class="pill">moduły: '+(rt.flowModules||'-')+'</span>';
+}
+refresh(); setInterval(refresh,3000);
+</script></body></html>
+)HTML";
     (void)cfg;
-    String html = R"HTML_WEBCFG(
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CT-100 · Panel serwisowy</title>
-  <style>
-    :root {
-      --dark-blue: #00263E;
-      --medium-blue: #0077C0;
-      --light-blue: #50BCEB;
-      --green: #76C043;
-      --orange: #F18A00;
-      --dark-gray: #4B4D4F;
-      --panel-gray: #A9A9A9;
-      --screen: #F5F5F0;
-      --page: #E9ECEF;
-      --card: #FFFFFF;
-      --line: #D8E0E7;
-      --text: #14212E;
-      --muted: #5C6B79;
-      --ok-bg: rgba(118, 192, 67, 0.18);
-      --warn-bg: rgba(241, 138, 0, 0.18);
-      --info-bg: rgba(80, 188, 235, 0.18);
-      --danger: #A60000;
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 16px;
-      --shadow: 0 18px 42px rgba(0, 38, 62, 0.12);
-      --shadow-soft: 0 10px 24px rgba(0, 38, 62, 0.08);
-    }
-
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      font-family: Inter, Arial, Helvetica, sans-serif;
-      background: var(--page);
-      color: var(--text);
-      padding: 14px;
-    }
-    button, input, select, textarea { font: inherit; }
-    a { color: inherit; }
-
-    .app {
-      max-width: 1600px;
-      margin: 0 auto;
-      min-height: calc(100vh - 28px);
-      display: grid;
-      grid-template-columns: 300px minmax(0, 1fr);
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 32px;
-      overflow: hidden;
-      box-shadow: var(--shadow);
-    }
-
-    .sidebar {
-      background: linear-gradient(180deg, var(--dark-blue) 0%, #073756 100%);
-      color: #fff;
-      padding: 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .brand-card, .quick-card, .account-card {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 28px;
-      padding: 18px;
-    }
-
-    .brand-top {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 12px;
-    }
-
-    .brand-logo {
-      width: 60px;
-      height: 60px;
-      border-radius: 18px;
-      background: var(--medium-blue);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      font-weight: 800;
-      letter-spacing: .08em;
-    }
-
-    .eyebrow {
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .22em;
-      color: #B5DBF2;
-    }
-
-    .brand-title {
-      margin-top: 6px;
-      font-size: 22px;
-      font-weight: 800;
-    }
-
-    .brand-copy, .account-copy {
-      font-size: 14px;
-      line-height: 1.48;
-      color: #E6EDF3;
-    }
-
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .nav a {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 16px;
-      border-radius: 18px;
-      text-decoration: none;
-      color: #E8EEF3;
-      font-weight: 700;
-      transition: .18s ease;
-    }
-
-    .nav a:hover, .nav a.active {
-      background: #fff;
-      color: var(--text);
-      box-shadow: var(--shadow-soft);
-    }
-
-    .nav-badge, .pill-badge, .mini-tag, .tiny-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      padding: 4px 8px;
-      font-size: 10px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .14em;
-      white-space: nowrap;
-    }
-    .nav-badge { background: rgba(80, 188, 235, 0.16); color: var(--dark-blue); }
-    .pill-badge.ok, .mini-tag.ok, .tiny-badge.ok { background: var(--ok-bg); color: var(--dark-blue); }
-    .pill-badge.warn, .mini-tag.warn, .tiny-badge.warn { background: var(--warn-bg); color: var(--dark-blue); }
-    .pill-badge.info, .mini-tag.info, .tiny-badge.info { background: var(--info-bg); color: var(--dark-blue); }
-    .pill-badge.dark, .mini-tag.dark, .tiny-badge.dark { background: var(--dark-gray); color: #fff; }
-
-    .quick-title {
-      margin: 0 0 12px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .24em;
-      color: #B5DBF2;
-    }
-
-    .quick-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 8px;
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 16px;
-      min-height: 44px;
-      padding: 11px 14px;
-      font-weight: 800;
-      cursor: pointer;
-      transition: transform .12s ease, opacity .12s ease;
-    }
-    .btn:hover { transform: translateY(-1px); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-    .btn.white { background: #fff; color: var(--text); }
-    .btn.blue { background: var(--medium-blue); color: #fff; }
-    .btn.green { background: var(--green); color: #fff; }
-    .btn.orange { background: var(--orange); color: #fff; }
-    .btn.gray { background: var(--dark-gray); color: #fff; }
-    .btn.red { background: var(--danger); color: #fff; }
-    .btn.outline {
-      background: transparent;
-      border: 1px solid var(--line);
-      color: var(--text);
-    }
-    .btn.full { width: 100%; }
-
-    .content {
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      background: linear-gradient(180deg, #FFFFFF 0%, #F7FAFC 100%);
-    }
-
-    .mobile-bar {
-      display: none;
-      padding: 12px 12px 0;
-    }
-
-    .mobile-toggle {
-      width: 100%;
-      border: 0;
-      background: var(--dark-blue);
-      color: #fff;
-      border-radius: 18px;
-      padding: 14px 16px;
-      font-weight: 800;
-      text-align: left;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      gap: 18px;
-      align-items: flex-start;
-      padding: 22px 28px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(255,255,255,.9);
-      backdrop-filter: blur(10px);
-    }
-
-    .page-title {
-      margin: 6px 0 0;
-      font-size: 34px;
-      font-weight: 800;
-      letter-spacing: -.03em;
-      line-height: 1.08;
-    }
-
-    .page-copy {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.45;
-      max-width: 680px;
-    }
-
-    .pills {
-      min-width: 560px;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 12px;
-    }
-
-    .pill {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 12px 14px;
-      box-shadow: var(--shadow-soft);
-    }
-
-    .pill .k {
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .16em;
-      color: var(--muted);
-    }
-
-    .pill .v {
-      margin-top: 6px;
-      font-size: 14px;
-      font-weight: 800;
-      word-break: break-word;
-    }
-
-    .main {
-      padding: 26px 28px 30px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    .cards-4 {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 16px;
-    }
-
-    .cols-2-1 {
-      display: grid;
-      grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1fr);
-      gap: 16px;
-    }
-
-    .cols-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 16px;
-    }
-
-    .card {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 28px;
-      padding: 20px;
-      box-shadow: var(--shadow-soft);
-      min-width: 0;
-    }
-
-    .card.soft { background: #F8FBFD; }
-
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .card-title {
-      margin: 0;
-      font-size: 21px;
-      font-weight: 800;
-    }
-
-    .card-sub {
-      margin-top: 5px;
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .metric-name {
-      font-size: 14px;
-      color: var(--muted);
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-
-    .metric-value {
-      font-size: 26px;
-      font-weight: 800;
-      line-height: 1.08;
-      margin-bottom: 6px;
-      word-break: break-word;
-    }
-
-    .metric-sub {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.42;
-    }
-
-    .lcd-shell {
-      display: grid;
-      grid-template-columns: 330px minmax(0,1fr);
-      gap: 18px;
-      align-items: start;
-    }
-
-    .terminal {
-      background: var(--panel-gray);
-      border: 2px solid #383838;
-      padding: 18px 16px 12px;
-      max-width: 336px;
-      border-radius: 2px;
-      margin: 0 auto;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
-    }
-
-    .terminal-logo {
-      width: 122px;
-      margin: 0 auto 10px;
-      background: var(--medium-blue);
-      color: #fff;
-      text-align: center;
-      padding: 8px 10px;
-      font-weight: 800;
-      font-size: 18px;
-    }
-
-    .terminal-screen {
-      background: var(--screen);
-      border: 3px solid #111;
-      min-height: 154px;
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .screen-top {
-      text-align: center;
-      font-size: 14px;
-      font-weight: 800;
-      line-height: 1.3;
-      min-height: 34px;
-    }
-
-    .screen-main {
-      text-align: center;
-      font-size: 26px;
-      font-weight: 800;
-      line-height: 1.1;
-      min-height: 30px;
-      word-break: break-word;
-    }
-
-    .screen-bottom {
-      text-align: center;
-      font-size: 13px;
-      color: #333;
-      line-height: 1.35;
-      min-height: 34px;
-    }
-
-    .func-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 12px;
-      margin: 20px 12px 18px;
-    }
-
-    .func-btn, .digit, .ok-key, .cancel-key {
-      border-radius: 8px;
-      border: 2px solid rgba(255,255,255,0.3);
-      cursor: pointer;
-      color: #fff;
-    }
-
-    .func-btn {
-      height: 40px;
-      background: #999;
-      color: #ececec;
-      border-color: #6f6f6f;
-      font-size: 20px;
-    }
-
-    .mid-hole {
-      background: #fff;
-      color: #111;
-      border: 3px solid #111;
-      font-size: 14px;
-      font-weight: 800;
-      line-height: 1.05;
-    }
-
-    .keys {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 14px;
-    }
-
-    .digit {
-      height: 56px;
-      background: #5a5a5a;
-      font-size: 42px;
-    }
-
-    .cancel-key {
-      height: 56px;
-      background: var(--danger);
-      font-size: 24px;
-    }
-
-    .ok-key {
-      height: 56px;
-      background: #0B9805;
-      font-size: 24px;
-    }
-
-    .lcd-side {
-      display: grid;
-      gap: 14px;
-    }
-
-    .mini-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 10px;
-    }
-
-    .mini-card {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: #fff;
-      padding: 12px;
-    }
-
-    .mini-card .k {
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .14em;
-      color: var(--muted);
-    }
-
-    .mini-card .v {
-      margin-top: 6px;
-      font-size: 14px;
-      font-weight: 800;
-      word-break: break-word;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 14px;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-    }
-
-    .field label {
-      font-size: 12px;
-      font-weight: 800;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .12em;
-    }
-
-    .input, .select, .textarea {
-      width: 100%;
-      border: 1px solid #C9D4DF;
-      border-radius: 14px;
-      background: #fff;
-      padding: 12px 14px;
-      color: var(--text);
-      min-height: 46px;
-    }
-
-    .textarea {
-      min-height: 118px;
-      resize: vertical;
-      font-family: "Courier New", monospace;
-      font-size: 13px;
-    }
-
-    .inline-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    .row-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .row-item {
-      border: 1px solid #E4EBF0;
-      border-radius: 16px;
-      background: #F8FBFD;
-      padding: 12px 14px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: flex-start;
-    }
-
-    .row-item .l {
-      color: var(--muted);
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .row-item .r {
-      text-align: right;
-      font-weight: 800;
-      font-size: 14px;
-      word-break: break-word;
-    }
-
-    .tcp-stack {
-      display: grid;
-      gap: 10px;
-    }
-
-    .tcp-item {
-      border: 1px solid #E5ECF1;
-      border-radius: 18px;
-      background: #F8FBFD;
-      padding: 14px;
-    }
-
-    .tcp-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .tcp-name { font-weight: 800; }
-    .tcp-desc {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.45;
-    }
-
-    .events {
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      overflow: hidden;
-    }
-
-    table { width: 100%; border-collapse: collapse; }
-    thead { background: #F7FAFD; }
-    th, td {
-      text-align: left;
-      padding: 14px 16px;
-      border-bottom: 1px solid #EAF0F4;
-      font-size: 14px;
-      vertical-align: top;
-    }
-    tbody tr:last-child td { border-bottom: 0; }
-    .mono { font-family: "Courier New", monospace; color: #617382; }
-
-    .segment {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
-
-    .segment button {
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 999px;
-      padding: 10px 14px;
-      font-weight: 800;
-      cursor: pointer;
-      color: var(--muted);
-    }
-
-    .segment button.active {
-      background: var(--dark-blue);
-      color: #fff;
-      border-color: var(--dark-blue);
-    }
-
-    .hidden { display: none !important; }
-
-    .toast {
-      position: fixed;
-      right: 18px;
-      bottom: 18px;
-      background: var(--dark-blue);
-      color: #fff;
-      border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: var(--shadow);
-      display: none;
-      z-index: 30;
-      max-width: 320px;
-    }
-
-    .loading::after {
-      content: ' · odświeżanie';
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-    }
-
-    @media (max-width: 1320px) {
-      .cards-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
-      .cols-2-1, .lcd-shell, .cols-3 { grid-template-columns: 1fr; }
-      .pills { min-width: 0; grid-template-columns: repeat(2, minmax(0,1fr)); }
-    }
-
-    @media (max-width: 980px) {
-      body { padding: 10px; }
-      .mobile-bar { display: block; }
-      .app { grid-template-columns: 1fr; min-height: auto; }
-      .sidebar { display: none; }
-      .app.nav-open .sidebar { display: flex; }
-      .topbar { flex-direction: column; align-items: stretch; padding: 18px; }
-      .main { padding: 18px; }
-      .cards-4, .form-grid, .mini-grid, .pills { grid-template-columns: 1fr; }
-      .page-title { font-size: 28px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="mobile-bar">
-    <button class="mobile-toggle" id="mobileToggle">☰ Menu panelu CT-100</button>
-  </div>
-
-  <div class="app" id="appRoot">
-    <aside class="sidebar">
-      <section class="brand-card">
-        <div class="brand-top">
-          <div class="brand-logo">CT</div>
-          <div>
-            <div class="eyebrow">Tamtron</div>
-            <div class="brand-title">Panel serwisowy</div>
-          </div>
-        </div>
-        <div class="brand-copy">Rozszerzony webserver do konfiguracji, sterowania i pełniejszego podglądu runtime bez zmiany logiki firmware.</div>
-      </section>
-
-      <nav class="nav">
-        <a href="#dashboard" class="active"><span>Dashboard</span><span class="nav-badge">Live</span></a>
-        <a href="#config"><span>Konfiguracja</span></a>
-        <a href="#control"><span>Sterowanie</span></a>
-        <a href="#diagnostics"><span>Diagnostyka</span></a>
-        <a href="#system"><span>System</span></a>
-      </nav>
-
-      <section class="quick-card">
-        <h3 class="quick-title">Szybkie akcje</h3>
-        <div class="quick-grid">
-          <button class="btn white" id="refreshBtn">Odśwież</button>
-          <button class="btn blue" id="saveBtn">Zapisz</button>
-          <button class="btn gray" id="statusBtn">Status TXT</button>
-          <button class="btn orange" id="firmwareBtn">Firmware</button>
-          <button class="btn green" id="logsBtn">Logi</button>
-          <button class="btn red" id="restartBtn">Restart</button>
-        </div>
-      </section>
-
-      <section class="account-card">
-        <div class="eyebrow">Sesja</div>
-        <div class="account-copy" style="margin-top:8px;">
-          Rola: <strong id="roleText">-</strong><br>
-          Użytkownik: <strong id="userText">-</strong><br>
-          Edycja security: <strong id="securityEditText">-</strong>
-        </div>
-      </section>
-    </aside>
-
-    <section class="content">
-      <header class="topbar">
-        <div>
-          <div class="eyebrow" style="color: var(--muted);">CT-100 / Webserver</div>
-          <h1 class="page-title">Widok serwisowy i konfiguracyjny</h1>
-          <div class="page-copy">Interfejs oparty o istniejące endpointy firmware. Zawiera pełny zapis konfiguracji, sterowanie wyjściami, wirtualną klawiaturę, lepszy runtime i czytelniejszy podgląd urządzenia.</div>
-        </div>
-        <div class="pills">
-          <div class="pill"><div class="k">Urządzenie</div><div class="v" id="pillDevice">-</div></div>
-          <div class="pill"><div class="k">IP</div><div class="v" id="pillIp">-</div></div>
-          <div class="pill"><div class="k">Firmware</div><div class="v" id="pillFw">-</div></div>
-          <div class="pill"><div class="k">MAC</div><div class="v" id="pillMac">-</div></div>
-        </div>
-      </header>
-
-      <main class="main" id="mainRoot">
-        <section id="dashboard" class="cards-4"></section>
-
-        <section class="card soft">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Podgląd urządzenia i wirtualna klawiatura</h2>
-              <div class="card-sub">Styl bazuje na urządzeniu z przesłanego projektu graficznego. Działa wyłącznie przez istniejące endpointy klawiatury i kodu.</div>
-            </div>
-            <span class="mini-tag info">bez zmian logiki</span>
-          </div>
-
-          <div class="lcd-shell">
-            <div class="terminal">
-              <div class="terminal-logo">TAMTRON</div>
-              <div class="terminal-screen">
-                <div class="screen-top" id="screenTop">Oczekiwanie na dane</div>
-                <div class="screen-main" id="screenMain">---</div>
-                <div class="screen-bottom" id="screenBottom">Zbliż kartę RFID lub wpisz kod.</div>
-              </div>
-
-              <div class="func-row">
-                <button class="func-btn" onclick="sendVirtualKey('F1')">F1</button>
-                <button class="func-btn mid-hole" onclick="sendVirtualKey('MID')">Otwór<br>20x10</button>
-                <button class="func-btn" onclick="sendVirtualKey('F2')">F2</button>
-              </div>
-
-              <div class="keys">
-                <button class="digit" onclick="appendDigit('1')">1</button>
-                <button class="digit" onclick="appendDigit('2')">2</button>
-                <button class="digit" onclick="appendDigit('3')">3</button>
-                <button class="digit" onclick="appendDigit('4')">4</button>
-                <button class="digit" onclick="appendDigit('5')">5</button>
-                <button class="digit" onclick="appendDigit('6')">6</button>
-                <button class="digit" onclick="appendDigit('7')">7</button>
-                <button class="digit" onclick="appendDigit('8')">8</button>
-                <button class="digit" onclick="appendDigit('9')">9</button>
-                <button class="cancel-key" onclick="clearCodeBuffer()">X</button>
-                <button class="digit" onclick="appendDigit('0')">0</button>
-                <button class="ok-key" onclick="submitCodeBuffer()">OK</button>
-              </div>
-            </div>
-
-            <div class="lcd-side">
-              <div class="card">
-                <div class="card-head">
-                  <div>
-                    <h3 class="card-title">Wysyłanie kodu i klawiszy</h3>
-                    <div class="card-sub">Kod może być wysłany z bufora klawiatury ekranowej albo ręcznie.</div>
-                  </div>
-                  <span class="tiny-badge ok">TCP/API</span>
-                </div>
-
-                <div class="field">
-                  <label for="manualCode">Kod ręczny</label>
-                  <input class="input" id="manualCode" placeholder="np. 12345 lub kod produktu" />
-                </div>
-
-                <div class="inline-actions">
-                  <button class="btn blue" id="sendCodeBtn">Wyślij kod</button>
-                  <button class="btn outline" id="clearCodeBtn">Wyczyść</button>
-                  <button class="btn gray" id="sendHashBtn">Wyślij #</button>
-                  <button class="btn gray" id="sendStarBtn">Wyślij *</button>
-                </div>
-
-                <div class="field" style="margin-top:16px;">
-                  <label for="commandMirror">Podgląd bufora</label>
-                  <textarea class="textarea" id="commandMirror" readonly></textarea>
-                </div>
-              </div>
-
-              <div class="mini-grid">
-                <div class="mini-card"><div class="k">Ostatni RFID</div><div class="v" id="miniRfid">-</div></div>
-                <div class="mini-card"><div class="k">Ostatni QR</div><div class="v" id="miniQr">-</div></div>
-                <div class="mini-card"><div class="k">Ostatni klawisz</div><div class="v" id="miniKey">-</div></div>
-                <div class="mini-card"><div class="k">Ostatni kod WWW</div><div class="v" id="miniWebCode">-</div></div>
-                <div class="mini-card"><div class="k">Wyjście OUT1</div><div class="v" id="miniOut1">-</div></div>
-                <div class="mini-card"><div class="k">Wyjście OUT2</div><div class="v" id="miniOut2">-</div></div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="cols-3" id="config">
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Sieć i bezpieczeństwo</h2>
-                <div class="card-sub">Formularz zapisuje payload w formacie zgodnym z aktualnym parserem REST po stronie firmware.</div>
-              </div>
-              <span class="tiny-badge info">REST save</span>
-            </div>
-            <div class="form-grid">
-              <div class="field"><label>Nazwa urządzenia</label><input class="input" id="cfg_deviceName" /></div>
-              <div class="field"><label>Tryb sieci</label><select class="select" id="cfg_networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div>
-              <div class="field"><label>IP</label><input class="input" id="cfg_ip" /></div>
-              <div class="field"><label>Brama</label><input class="input" id="cfg_gateway" /></div>
-              <div class="field"><label>Maska</label><input class="input" id="cfg_subnet" /></div>
-              <div class="field"><label>DNS 1</label><input class="input" id="cfg_dns1" /></div>
-              <div class="field"><label>DNS 2</label><input class="input" id="cfg_dns2" /></div>
-              <div class="field"><label>Login service</label><input class="input" id="cfg_serviceUser" /></div>
-              <div class="field"><label>Hasło service</label><input class="input" id="cfg_servicePassword" /></div>
-              <div class="field"><label>Login admin</label><input class="input" id="cfg_adminUser" /></div>
-              <div class="field"><label>Hasło admin</label><input class="input" id="cfg_adminPassword" /></div>
-              <div class="field"><label>Hasło OTA</label><input class="input" id="cfg_otaPassword" /></div>
-            </div>
-            <div class="inline-actions">
-              <button class="btn blue" id="saveNetworkSecurityBtn">Zapisz konfigurację</button>
-              <button class="btn outline" id="reloadConfigBtn">Przeładuj</button>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">TCP, RFID i I/O</h2>
-                <div class="card-sub">Pełna konfiguracja transportów oraz urządzeń wejścia/wyjścia.</div>
-              </div>
-              <span class="tiny-badge warn">runtime+cfg</span>
-            </div>
-            <div class="form-grid">
-              <div class="field"><label>Tryb TCP komend</label><select class="select" id="cfg_tcpMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div>
-              <div class="field"><label>TCP server IP</label><input class="input" id="cfg_serverIp" /></div>
-              <div class="field"><label>TCP server port</label><input class="input" id="cfg_serverPort" type="number" /></div>
-              <div class="field"><label>TCP listen port</label><input class="input" id="cfg_listenPort" type="number" /></div>
-              <div class="field"><label>Scale enabled</label><select class="select" id="cfg_scaleEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
-              <div class="field"><label>Scale TCP mode</label><select class="select" id="cfg_scaleMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div>
-              <div class="field"><label>Scale server IP</label><input class="input" id="cfg_scaleServerIp" /></div>
-              <div class="field"><label>Scale server port</label><input class="input" id="cfg_scaleServerPort" type="number" /></div>
-              <div class="field"><label>Scale listen port</label><input class="input" id="cfg_scaleListenPort" type="number" /></div>
-              <div class="field"><label>RFID enabled</label><select class="select" id="cfg_rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
-              <div class="field"><label>RFID baud</label><input class="input" id="cfg_baudRate" type="number" /></div>
-              <div class="field"><label>RFID encoding</label><select class="select" id="cfg_encoding"><option value="hex">HEX</option><option value="dec">DEC</option><option value="raw">RAW</option><option value="scale_frame">SCALE_FRAME</option></select></div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">LCD, keypad i discovery</h2>
-                <div class="card-sub">Parametry sprzętowe i serwisowe wykorzystywane podczas bootu oraz pracy.</div>
-              </div>
-              <span class="tiny-badge dark">hardware</span>
-            </div>
-            <div class="form-grid">
-              <div class="field"><label>LCD enabled</label><select class="select" id="cfg_displayEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
-              <div class="field"><label>Kontrast LCD</label><input class="input" id="cfg_contrast" type="number" min="0" max="255" /></div>
-              <div class="field"><label>Keypad enabled</label><select class="select" id="cfg_keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
-              <div class="field"><label>PCF8574 address</label><input class="input" id="cfg_pcf8574Address" type="number" /></div>
-              <div class="field"><label>Discovery enabled</label><select class="select" id="cfg_discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
-              <div class="field"><label>UDP discovery port</label><input class="input" id="cfg_udpPort" type="number" /></div>
-            </div>
-            <div class="inline-actions">
-              <button class="btn blue" id="saveAllBtn">Zapisz całość</button>
-              <button class="btn orange" id="restartAfterSaveBtn">Zapisz i przypomnij restart</button>
-            </div>
-          </section>
-        </section>
-
-        <section class="cols-2-1" id="control">
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Sterowanie wyjściami i akustyką</h2>
-                <div class="card-sub">Komendy sterujące wykorzystują istniejące endpointy OUT1, OUT2 i buzzer.</div>
-              </div>
-              <span class="tiny-badge ok">live control</span>
-            </div>
-            <div class="segment">
-              <button class="active" data-ms="120">120 ms</button>
-              <button data-ms="250">250 ms</button>
-              <button data-ms="500">500 ms</button>
-              <button data-ms="1000">1000 ms</button>
-            </div>
-            <div class="inline-actions">
-              <button class="btn green" id="out1OnBtn">OUT1 ON</button>
-              <button class="btn red" id="out1OffBtn">OUT1 OFF</button>
-              <button class="btn green" id="out2OnBtn">OUT2 ON</button>
-              <button class="btn red" id="out2OffBtn">OUT2 OFF</button>
-              <button class="btn orange" id="buzzerBtn">BUZZER</button>
-            </div>
-            <div class="events" style="margin-top:16px;">
-              <table>
-                <thead>
-                  <tr><th>Czas</th><th>Źródło</th><th>Treść</th></tr>
-                </thead>
-                <tbody id="controlEvents"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Stan I/O</h2>
-                <div class="card-sub">Podsumowanie flag runtime i ostatnich zdarzeń.</div>
-              </div>
-            </div>
-            <div class="row-list" id="ioStateList"></div>
-          </section>
-        </section>
-
-        <section class="cols-2-1" id="diagnostics">
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Diagnostyka komunikacji</h2>
-                <div class="card-sub">Komendy, waga, wejścia, ostatni ruch danych oraz stan aktywności modułów.</div>
-              </div>
-              <span class="tiny-badge info">runtime</span>
-            </div>
-            <div class="tcp-stack" id="tcpStack"></div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Szybki podgląd</h2>
-                <div class="card-sub">Pobierane z /api/runtime i /api/device/info.</div>
-              </div>
-            </div>
-            <div class="row-list" id="diagQuickList"></div>
-          </section>
-        </section>
-
-        <section class="cols-3" id="system">
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Status TXT</h2>
-                <div class="card-sub">Surowy snapshot tekstowy z firmware.</div>
-              </div>
-              <button class="btn outline" id="reloadStatusBtn">Odśwież TXT</button>
-            </div>
-            <textarea class="textarea" id="statusText" readonly></textarea>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Logi</h2>
-                <div class="card-sub">Szybkie przejście do pełnych logów oraz najważniejsze wskaźniki.</div>
-              </div>
-              <button class="btn outline" id="openLogsBtn">Otwórz logi</button>
-            </div>
-            <div class="row-list" id="systemFacts"></div>
-          </section>
-
-          <section class="card">
-            <div class="card-head">
-              <div>
-                <h2 class="card-title">Akcje systemowe</h2>
-                <div class="card-sub">Restart i przejścia do ekranów serwisowych firmware.</div>
-              </div>
-            </div>
-            <div class="inline-actions">
-              <button class="btn orange full" id="goFirmwareBtn">Firmware OTA</button>
-              <button class="btn gray full" id="goStatusBtn">Status TXT</button>
-              <button class="btn green full" id="goLogsBtn">Logi</button>
-              <button class="btn red full" id="systemRestartBtn">Restart urządzenia</button>
-            </div>
-          </section>
-        </section>
-      </main>
-    </section>
-  </div>
-
-  <div class="toast" id="toast"></div>
-
-  <script>
-    const state = {
-      device: null,
-      config: null,
-      runtime: null,
-      statusText: '',
-      codeBuffer: '',
-      eventLog: [],
-      buzzerMs: 120,
-      auth: { role: '-', user: '-', canEditSecurity: false }
-    };
-
-    const $ = (id) => document.getElementById(id);
-
-    function escapeHtml(value) {
-      return String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-    }
-
-    function valueOrDash(value) {
-      return value === undefined || value === null || value === '' ? '-' : String(value);
-    }
-
-    function boolText(value) {
-      return value ? 'ON' : 'OFF';
-    }
-
-    function nowTime() {
-      return new Date().toLocaleTimeString('pl-PL');
-    }
-
-    function showToast(message, ms = 2200) {
-      const toast = $('toast');
-      toast.textContent = message;
-      toast.style.display = 'block';
-      clearTimeout(showToast._timer);
-      showToast._timer = setTimeout(() => toast.style.display = 'none', ms);
-    }
-
-    async function fetchJson(url, options) {
-      const res = await fetch(url, options);
-      if (!res.ok) throw new Error(url + ' -> ' + res.status);
-      return res.json();
-    }
-
-    async function fetchText(url, options) {
-      const res = await fetch(url, options);
-      if (!res.ok) throw new Error(url + ' -> ' + res.status);
-      return res.text();
-    }
-
-    async function postPlain(url, payload) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: payload
-      });
-      if (!res.ok) throw new Error(url + ' -> ' + res.status);
-      const text = await res.text();
-      try { return JSON.parse(text); } catch (_) { return { ok: true, raw: text }; }
-    }
-
-    function addEvent(source, text) {
-      state.eventLog.unshift({ time: nowTime(), source, text });
-      state.eventLog = state.eventLog.slice(0, 8);
-      renderControlEvents();
-    }
-
-    async function refreshAll() {
-      $('mainRoot').classList.add('loading');
-      try {
-        const [device, config, runtime, statusText] = await Promise.all([
-          fetchJson('/api/device/info'),
-          fetchJson('/api/config'),
-          fetchJson('/api/runtime'),
-          fetchText('/status')
-        ]);
-        state.device = device;
-        state.config = config;
-        state.runtime = runtime;
-        state.statusText = statusText;
-        state.auth.role = device.currentRole || '-';
-        state.auth.user = config?.security?.serviceUser || '-';
-        state.auth.canEditSecurity = !!config?.permissions?.canEditSecurity;
-        renderAll();
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd odświeżania danych');
-      } finally {
-        $('mainRoot').classList.remove('loading');
-      }
-    }
-
-    function renderTop() {
-      $('pillDevice').textContent = valueOrDash(state.device?.deviceName);
-      $('pillIp').textContent = valueOrDash(state.device?.ip);
-      $('pillFw').textContent = valueOrDash(state.device?.fw);
-      $('pillMac').textContent = valueOrDash(state.device?.mac);
-      $('roleText').textContent = valueOrDash(state.device?.currentRole);
-      $('userText').textContent = state.auth.canEditSecurity
-        ? valueOrDash(state.config?.security?.adminUser || state.config?.security?.serviceUser)
-        : valueOrDash(state.config?.security?.serviceUser);
-      $('securityEditText').textContent = state.auth.canEditSecurity ? 'TAK' : 'NIE';
-    }
-
-    function renderDashboard() {
-      const runtime = state.runtime || {};
-      const config = state.config || {};
-      const cards = [
-        {
-          label: 'Sieć',
-          value: valueOrDash(runtime.ip || state.device?.ip),
-          sub: 'Tryb: ' + valueOrDash(config.network?.mode).toUpperCase(),
-          tone: 'ok'
-        },
-        {
-          label: 'TCP komendy',
-          value: runtime.cmdTcpConnected ? 'POŁĄCZONY' : 'BRAK',
-          sub: valueOrDash(runtime.cmdTcpLast),
-          tone: runtime.cmdTcpConnected ? 'ok' : 'warn'
-        },
-        {
-          label: 'TCP wagi',
-          value: runtime.scaleTcpConnected ? 'POŁĄCZONY' : (config.scaleTcp?.enabled ? 'BRAK' : 'OFF'),
-          sub: valueOrDash(runtime.scaleTcpLast),
-          tone: runtime.scaleTcpConnected ? 'ok' : (config.scaleTcp?.enabled ? 'warn' : 'info')
-        },
-        {
-          label: 'Wejścia',
-          value: 'RFID ' + boolText(runtime.rfidEnabled) + ' / KEY ' + boolText(runtime.keypadEnabled),
-          sub: 'QR: ' + valueOrDash(runtime.qrLast),
-          tone: 'info'
-        }
-      ];
-
-      $('dashboard').innerHTML = cards.map(card => `
-        <article class="card">
-          <div class="card-head" style="margin-bottom:10px;">
-            <div class="metric-name">${escapeHtml(card.label)}</div>
-            <span class="pill-badge ${card.tone}">${card.tone === 'ok' ? 'OK' : card.tone === 'warn' ? 'UWAGA' : 'INFO'}</span>
-          </div>
-          <div class="metric-value">${escapeHtml(card.value)}</div>
-          <div class="metric-sub">${escapeHtml(card.sub)}</div>
-        </article>
-      `).join('');
-    }
-
-    function deriveScreenState() {
-      const runtime = state.runtime || {};
-      if (state.codeBuffer) {
-        return {
-          top: 'KOD Z WEBPANELU',
-          main: state.codeBuffer,
-          bottom: 'Wciśnij OK, aby wysłać do urządzenia.'
-        };
-      }
-      if (runtime.scaleTcpLast && runtime.scaleTcpLast !== '-') {
-        return {
-          top: runtime.cmdTcpConnected ? 'POŁĄCZENIE AKTYWNE' : 'TRYB LOKALNY',
-          main: runtime.scaleTcpLast,
-          bottom: runtime.rfidLast ? ('Ostatnia karta: ' + runtime.rfidLast) : 'Oczekiwanie na kartę RFID'
-        };
-      }
-      return {
-        top: runtime.cmdTcpConnected ? 'TERMINAL GOTOWY' : 'BRAK SESJI TCP',
-        main: runtime.webCodeLast || runtime.keyLast || '---',
-        bottom: runtime.lastInbound || 'Zbliż kartę RFID lub wpisz kod.'
-      };
-    }
-
-    function renderTerminal() {
-      const runtime = state.runtime || {};
-      const screen = deriveScreenState();
-      $('screenTop').textContent = screen.top;
-      $('screenMain').textContent = screen.main;
-      $('screenBottom').textContent = screen.bottom;
-      $('commandMirror').value = state.codeBuffer || '';
-      $('manualCode').value = state.codeBuffer || $('manualCode').value || '';
-      $('miniRfid').textContent = valueOrDash(runtime.rfidLast);
-      $('miniQr').textContent = valueOrDash(runtime.qrLast);
-      $('miniKey').textContent = valueOrDash(runtime.keyLast);
-      $('miniWebCode').textContent = valueOrDash(runtime.webCodeLast);
-      $('miniOut1').textContent = boolText(runtime.out1);
-      $('miniOut2').textContent = boolText(runtime.out2);
-    }
-
-    function fillForm(id, value) {
-      const el = $(id);
-      if (el) el.value = value;
-    }
-
-    function renderConfig() {
-      const cfg = state.config || {};
-      fillForm('cfg_deviceName', cfg.network?.deviceName || 'ct100-terminal');
-      fillForm('cfg_networkMode', cfg.network?.mode || 'dhcp');
-      fillForm('cfg_ip', cfg.network?.ip || '192.168.1.112');
-      fillForm('cfg_gateway', cfg.network?.gateway || '192.168.1.1');
-      fillForm('cfg_subnet', cfg.network?.subnet || '255.255.255.0');
-      fillForm('cfg_dns1', cfg.network?.dns1 || '8.8.8.8');
-      fillForm('cfg_dns2', cfg.network?.dns2 || '1.1.1.1');
-      fillForm('cfg_serviceUser', cfg.security?.serviceUser || 'service');
-      fillForm('cfg_servicePassword', '');
-      fillForm('cfg_adminUser', cfg.security?.adminUser || 'admin');
-      fillForm('cfg_adminPassword', '');
-      fillForm('cfg_otaPassword', '');
-
-      fillForm('cfg_tcpMode', cfg.tcp?.mode || 'client');
-      fillForm('cfg_serverIp', cfg.tcp?.serverIp || '192.168.1.10');
-      fillForm('cfg_serverPort', cfg.tcp?.serverPort || 7000);
-      fillForm('cfg_listenPort', cfg.tcp?.listenPort || 7000);
-      fillForm('cfg_scaleEnabled', String(cfg.scaleTcp?.enabled ?? true));
-      fillForm('cfg_scaleMode', cfg.scaleTcp?.mode || 'client');
-      fillForm('cfg_scaleServerIp', cfg.scaleTcp?.serverIp || '192.168.1.20');
-      fillForm('cfg_scaleServerPort', cfg.scaleTcp?.serverPort || 4001);
-      fillForm('cfg_scaleListenPort', cfg.scaleTcp?.listenPort || 4001);
-      fillForm('cfg_rfidEnabled', String(cfg.rfid?.enabled ?? true));
-      fillForm('cfg_baudRate', cfg.rfid?.baudRate || 9600);
-      fillForm('cfg_encoding', cfg.rfid?.encoding || 'hex');
-
-      fillForm('cfg_displayEnabled', String(cfg.display?.enabled ?? true));
-      fillForm('cfg_contrast', cfg.display?.contrast || 180);
-      fillForm('cfg_keypadEnabled', String(cfg.keypad?.enabled ?? true));
-      fillForm('cfg_pcf8574Address', cfg.keypad?.pcf8574Address || 32);
-      fillForm('cfg_discoveryEnabled', String(cfg.discovery?.enabled ?? true));
-      fillForm('cfg_udpPort', cfg.discovery?.udpPort || 40404);
-
-      const canEditSecurity = !!cfg.permissions?.canEditSecurity;
-      ['cfg_adminUser', 'cfg_adminPassword', 'cfg_serviceUser', 'cfg_servicePassword', 'cfg_otaPassword'].forEach(id => {
-        $(id).disabled = !canEditSecurity;
-      });
-    }
-
-    function rowItem(label, value) {
-      return `<div class="row-item"><div class="l">${escapeHtml(label)}</div><div class="r">${escapeHtml(valueOrDash(value))}</div></div>`;
-    }
-
-    function renderControlEvents() {
-      const rows = state.eventLog.length ? state.eventLog : [
-        { time: nowTime(), source: 'SYSTEM', text: 'Brak lokalnych akcji w tej sesji.' }
-      ];
-      $('controlEvents').innerHTML = rows.map(row => `
-        <tr>
-          <td class="mono">${escapeHtml(row.time)}</td>
-          <td><strong>${escapeHtml(row.source)}</strong></td>
-          <td>${escapeHtml(row.text)}</td>
-        </tr>
-      `).join('');
-    }
-
-    function renderControlSide() {
-      const runtime = state.runtime || {};
-      $('ioStateList').innerHTML = [
-        ['OUT1', boolText(runtime.out1)],
-        ['OUT2', boolText(runtime.out2)],
-        ['Buzzer', boolText(runtime.buzzer)],
-        ['Ostatni outbound', runtime.lastOutbound],
-        ['Ostatni inbound', runtime.lastInbound],
-        ['Uptime [ms]', runtime.uptimeMs]
-      ].map(([k, v]) => rowItem(k, v)).join('');
-    }
-
-    function renderDiagnostics() {
-      const runtime = state.runtime || {};
-      const cfg = state.config || {};
-      const stack = [
-        {
-          name: 'Kanał komend',
-          status: runtime.cmdTcpConnected ? 'CONNECTED' : 'DISCONNECTED',
-          tone: runtime.cmdTcpConnected ? 'ok' : 'warn',
-          detail: 'Tryb: ' + valueOrDash(cfg.tcp?.mode).toUpperCase() + ' · Ostatnia wiadomość: ' + valueOrDash(runtime.cmdTcpLast)
-        },
-        {
-          name: 'Kanał wagi',
-          status: cfg.scaleTcp?.enabled ? (runtime.scaleTcpConnected ? 'CONNECTED' : 'WAITING') : 'OFF',
-          tone: cfg.scaleTcp?.enabled ? (runtime.scaleTcpConnected ? 'ok' : 'warn') : 'dark',
-          detail: 'Tryb: ' + valueOrDash(cfg.scaleTcp?.mode).toUpperCase() + ' · Odczyt: ' + valueOrDash(runtime.scaleTcpLast)
-        },
-        {
-          name: 'RFID / keypad',
-          status: boolText(runtime.rfidEnabled) + ' / ' + boolText(runtime.keypadEnabled),
-          tone: 'info',
-          detail: 'RFID: ' + valueOrDash(runtime.rfidLast) + ' · Key: ' + valueOrDash(runtime.keyLast)
-        },
-        {
-          name: 'Discovery / LCD',
-          status: boolText(runtime.discoveryEnabled) + ' / ' + boolText(runtime.displayEnabled),
-          tone: 'info',
-          detail: 'Discovery port: ' + valueOrDash(state.device?.discoveryPort) + ' · Kontrast: ' + valueOrDash(cfg.display?.contrast)
-        }
-      ];
-
-      $('tcpStack').innerHTML = stack.map(item => `
-        <div class="tcp-item">
-          <div class="tcp-top">
-            <div class="tcp-name">${escapeHtml(item.name)}</div>
-            <span class="tiny-badge ${item.tone}">${escapeHtml(item.status)}</span>
-          </div>
-          <div class="tcp-desc">${escapeHtml(item.detail)}</div>
-        </div>
-      `).join('');
-
-      $('diagQuickList').innerHTML = [
-        ['IP runtime', runtime.ip],
-        ['MAC', state.device?.mac],
-        ['Last QR', runtime.qrLast],
-        ['Last web code', runtime.webCodeLast],
-        ['TCP listen', state.device?.tcpListenPort],
-        ['Scale listen', state.device?.scaleListenPort]
-      ].map(([k, v]) => rowItem(k, v)).join('');
-    }
-
-    function renderSystem() {
-      $('statusText').value = state.statusText || '';
-      $('systemFacts').innerHTML = [
-        ['Rola', state.device?.currentRole],
-        ['Firmware', state.device?.fw],
-        ['Device ID', state.device?.deviceId],
-        ['Nazwa urządzenia', state.device?.deviceName],
-        ['Security edit', state.config?.permissions?.canEditSecurity ? 'TAK' : 'NIE'],
-        ['Discovery port', state.device?.discoveryPort]
-      ].map(([k, v]) => rowItem(k, v)).join('');
-    }
-
-    function renderAll() {
-      renderTop();
-      renderDashboard();
-      renderTerminal();
-      renderConfig();
-      renderControlEvents();
-      renderControlSide();
-      renderDiagnostics();
-      renderSystem();
-    }
-
-    function buildFlatPayload() {
-      const payload = {
-        deviceName: $('cfg_deviceName').value.trim(),
-        mode: $('cfg_networkMode').value,
-        ip: $('cfg_ip').value.trim(),
-        gateway: $('cfg_gateway').value.trim(),
-        subnet: $('cfg_subnet').value.trim(),
-        dns1: $('cfg_dns1').value.trim(),
-        dns2: $('cfg_dns2').value.trim(),
-
-        tcpMode: $('cfg_tcpMode').value,
-        serverIp: $('cfg_serverIp').value.trim(),
-        serverPort: Number($('cfg_serverPort').value || 0),
-        listenPort: Number($('cfg_listenPort').value || 0),
-
-        scaleEnabled: $('cfg_scaleEnabled').value === 'true',
-        scaleMode: $('cfg_scaleMode').value,
-        scaleServerIp: $('cfg_scaleServerIp').value.trim(),
-        scaleServerPort: Number($('cfg_scaleServerPort').value || 0),
-        scaleListenPort: Number($('cfg_scaleListenPort').value || 0),
-
-        rfidEnabled: $('cfg_rfidEnabled').value === 'true',
-        baudRate: Number($('cfg_baudRate').value || 0),
-        encoding: $('cfg_encoding').value,
-
-        displayEnabled: $('cfg_displayEnabled').value === 'true',
-        contrast: Number($('cfg_contrast').value || 0),
-        keypadEnabled: $('cfg_keypadEnabled').value === 'true',
-        pcf8574Address: Number($('cfg_pcf8574Address').value || 0),
-        discoveryEnabled: $('cfg_discoveryEnabled').value === 'true',
-        udpPort: Number($('cfg_udpPort').value || 0)
-      };
-
-      if (state.config?.permissions?.canEditSecurity) {
-        if ($('cfg_adminUser').value.trim()) payload.adminUser = $('cfg_adminUser').value.trim();
-        if ($('cfg_adminPassword').value.trim()) payload.adminPassword = $('cfg_adminPassword').value.trim();
-        if ($('cfg_serviceUser').value.trim()) payload.serviceUser = $('cfg_serviceUser').value.trim();
-        if ($('cfg_servicePassword').value.trim()) payload.servicePassword = $('cfg_servicePassword').value.trim();
-        if ($('cfg_otaPassword').value.trim()) payload.otaPassword = $('cfg_otaPassword').value.trim();
-      }
-      return payload;
-    }
-
-    async function saveConfig() {
-      try {
-        const payload = buildFlatPayload();
-        const res = await fetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        addEvent('CONFIG', 'Zapis konfiguracji przez /api/config');
-        showToast('Konfiguracja zapisana. Firmware wymaga restartu, aby wczytać nowe ustawienia.');
-        await refreshAll();
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd zapisu konfiguracji');
-      }
-    }
-
-    async function sendOutput(url, label) {
-      try {
-        const res = await fetch(url, { method: 'POST' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        addEvent('OUTPUT', label);
-        await refreshRuntimeOnly();
-        showToast('Wysłano: ' + label);
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd wykonania komendy');
-      }
-    }
-
-    async function refreshRuntimeOnly() {
-      try {
-        const runtime = await fetchJson('/api/runtime');
-        state.runtime = runtime;
-        renderTerminal();
-        renderDashboard();
-        renderControlSide();
-        renderDiagnostics();
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
-    async function loadStatusOnly() {
-      try {
-        state.statusText = await fetchText('/status');
-        renderSystem();
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd pobierania statusu TXT');
-      }
-    }
-
-    async function rebootDevice() {
-      if (!confirm('Uruchomić urządzenie ponownie?')) return;
-      try {
-        const res = await fetch('/reboot', { method: 'POST' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        addEvent('SYSTEM', 'Restart urządzenia');
-        showToast('Wysłano restart');
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd restartu');
-      }
-    }
-
-    function appendDigit(digit) {
-      state.codeBuffer += digit;
-      $('manualCode').value = state.codeBuffer;
-      renderTerminal();
-    }
-
-    function clearCodeBuffer() {
-      state.codeBuffer = '';
-      $('manualCode').value = '';
-      renderTerminal();
-      showToast('Bufor kodu wyczyszczony');
-    }
-
-    async function submitCodeBuffer() {
-      const code = state.codeBuffer.trim();
-      if (!code) {
-        showToast('Brak kodu do wysłania');
-        return;
-      }
-      try {
-        await postPlain('/api/keypad/code', code);
-        addEvent('KEYPAD', 'Kod wysłany: ' + code);
-        showToast('Kod wysłany');
-        state.codeBuffer = '';
-        await refreshRuntimeOnly();
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd wysyłki kodu');
-      }
-    }
-
-    async function sendVirtualKey(key) {
-      try {
-        await postPlain('/api/keypad/key', key);
-        addEvent('KEYPAD', 'Klawisz wysłany: ' + key);
-        showToast('Wysłano klawisz ' + key);
-        await refreshRuntimeOnly();
-      } catch (error) {
-        console.error(error);
-        showToast('Błąd wysyłki klawisza');
-      }
-    }
-
-    function wireSegment() {
-      document.querySelectorAll('.segment button').forEach(button => {
-        button.addEventListener('click', () => {
-          document.querySelectorAll('.segment button').forEach(node => node.classList.remove('active'));
-          button.classList.add('active');
-          state.buzzerMs = Number(button.dataset.ms || 120);
-        });
-      });
-    }
-
-    function wireNav() {
-      document.querySelectorAll('.nav a').forEach(link => {
-        link.addEventListener('click', () => {
-          document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
-          link.classList.add('active');
-          $('appRoot').classList.remove('nav-open');
-        });
-      });
-    }
-
-    function wireActions() {
-      $('mobileToggle').addEventListener('click', () => $('appRoot').classList.toggle('nav-open'));
-      $('refreshBtn').addEventListener('click', refreshAll);
-      $('saveBtn').addEventListener('click', saveConfig);
-      $('saveNetworkSecurityBtn').addEventListener('click', saveConfig);
-      $('saveAllBtn').addEventListener('click', saveConfig);
-      $('restartAfterSaveBtn').addEventListener('click', async () => {
-        await saveConfig();
-        showToast('Konfiguracja zapisana. Teraz wykonaj restart urządzenia.');
-      });
-      $('reloadConfigBtn').addEventListener('click', refreshAll);
-
-      $('sendCodeBtn').addEventListener('click', async () => {
-        state.codeBuffer = $('manualCode').value.trim();
-        await submitCodeBuffer();
-      });
-      $('clearCodeBtn').addEventListener('click', clearCodeBuffer);
-      $('sendHashBtn').addEventListener('click', () => sendVirtualKey('#'));
-      $('sendStarBtn').addEventListener('click', () => sendVirtualKey('*'));
-
-      $('out1OnBtn').addEventListener('click', () => sendOutput('/api/output/out1/on', 'OUT1 ON'));
-      $('out1OffBtn').addEventListener('click', () => sendOutput('/api/output/out1/off', 'OUT1 OFF'));
-      $('out2OnBtn').addEventListener('click', () => sendOutput('/api/output/out2/on', 'OUT2 ON'));
-      $('out2OffBtn').addEventListener('click', () => sendOutput('/api/output/out2/off', 'OUT2 OFF'));
-      $('buzzerBtn').addEventListener('click', () => sendOutput('/api/output/buzzer?ms=' + state.buzzerMs, 'BUZZER ' + state.buzzerMs + ' ms'));
-
-      $('statusBtn').addEventListener('click', () => window.open('/status', '_blank'));
-      $('logsBtn').addEventListener('click', () => window.open('/logs', '_blank'));
-      $('firmwareBtn').addEventListener('click', () => window.open('/firmware', '_blank'));
-      $('restartBtn').addEventListener('click', rebootDevice);
-      $('reloadStatusBtn').addEventListener('click', loadStatusOnly);
-      $('openLogsBtn').addEventListener('click', () => window.open('/logs', '_blank'));
-      $('goFirmwareBtn').addEventListener('click', () => window.open('/firmware', '_blank'));
-      $('goStatusBtn').addEventListener('click', () => window.open('/status', '_blank'));
-      $('goLogsBtn').addEventListener('click', () => window.open('/logs', '_blank'));
-      $('systemRestartBtn').addEventListener('click', rebootDevice);
-    }
-
-    wireSegment();
-    wireNav();
-    wireActions();
-    refreshAll();
-    setInterval(refreshRuntimeOnly, 3000);
-    window.appendDigit = appendDigit;
-    window.clearCodeBuffer = clearCodeBuffer;
-    window.submitCodeBuffer = submitCodeBuffer;
-    window.sendVirtualKey = sendVirtualKey;
-  </script>
-</body>
-</html>
-
-)HTML_WEBCFG";
     return html;
 }
 
 String WebConfigServer::parseStringField(const String& body, const String& key, const String& fallback) {
-    const String needle = """ + key + """;
+    const String needle = "\"" + key + "\"";
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
-
     const int colonPos = body.indexOf(':', keyPos + needle.length());
     if (colonPos < 0) return fallback;
-
     const int firstQuote = body.indexOf('"', colonPos + 1);
     if (firstQuote < 0) return fallback;
-
     const int secondQuote = body.indexOf('"', firstQuote + 1);
     if (secondQuote < 0) return fallback;
-
     return body.substring(firstQuote + 1, secondQuote);
 }
 
 bool WebConfigServer::parseBoolField(const String& body, const String& key, bool fallback) {
-    const String needle = """ + key + """;
+    const String needle = "\"" + key + "\"";
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
-
     const int colonPos = body.indexOf(':', keyPos + needle.length());
     if (colonPos < 0) return fallback;
-
     int start = colonPos + 1;
     while (start < (int)body.length() && isspace((unsigned char)body[start])) ++start;
-
     if (body.startsWith("true", start)) return true;
     if (body.startsWith("false", start)) return false;
     return fallback;
 }
 
 uint16_t WebConfigServer::parseUInt16Field(const String& body, const String& key, uint16_t fallback) {
-    const String needle = """ + key + """;
+    const String needle = "\"" + key + "\"";
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
-
     const int colonPos = body.indexOf(':', keyPos + needle.length());
     if (colonPos < 0) return fallback;
-
     int start = colonPos + 1;
     while (start < (int)body.length() && isspace((unsigned char)body[start])) ++start;
-
     int end = start;
     while (end < (int)body.length() && isdigit((unsigned char)body[end])) ++end;
-
     if (end <= start) return fallback;
     return static_cast<uint16_t>(body.substring(start, end).toInt());
 }
 
 uint32_t WebConfigServer::parseUInt32Field(const String& body, const String& key, uint32_t fallback) {
-    const String needle = """ + key + """;
+    const String needle = "\"" + key + "\"";
     const int keyPos = body.indexOf(needle);
     if (keyPos < 0) return fallback;
-
     const int colonPos = body.indexOf(':', keyPos + needle.length());
     if (colonPos < 0) return fallback;
-
     int start = colonPos + 1;
     while (start < (int)body.length() && isspace((unsigned char)body[start])) ++start;
-
     int end = start;
     while (end < (int)body.length() && isdigit((unsigned char)body[end])) ++end;
-
     if (end <= start) return fallback;
     return static_cast<uint32_t>(strtoul(body.substring(start, end).c_str(), nullptr, 10));
 }
 
 void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body, bool allowSecurity) const {
     cfg.network.deviceName = parseStringField(body, "deviceName", cfg.network.deviceName);
-
     const String netMode = parseStringField(body, "mode", "");
-    if (netMode == "dhcp" || netMode == "static") {
-        cfg.network.mode = ConfigManager::networkModeFromString(netMode);
-    }
-
+    if (netMode == "dhcp" || netMode == "static") cfg.network.mode = ConfigManager::networkModeFromString(netMode);
     cfg.network.ip = ConfigManager::stringToIp(parseStringField(body, "ip", cfg.network.ip.toString()));
     cfg.network.gateway = ConfigManager::stringToIp(parseStringField(body, "gateway", cfg.network.gateway.toString()));
     cfg.network.subnet = ConfigManager::stringToIp(parseStringField(body, "subnet", cfg.network.subnet.toString()));
@@ -2135,35 +464,29 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body,
     cfg.network.dns2 = ConfigManager::stringToIp(parseStringField(body, "dns2", cfg.network.dns2.toString()));
 
     const String tcpMode = parseStringField(body, "tcpMode", parseStringField(body, "mode", ""));
-    if (tcpMode == "client" || tcpMode == "host" || tcpMode == "server") {
-        cfg.tcp.mode = ConfigManager::tcpModeFromString(tcpMode);
-    }
-
+    if (tcpMode == "client" || tcpMode == "host" || tcpMode == "server") cfg.tcp.mode = ConfigManager::tcpModeFromString(tcpMode);
     cfg.tcp.serverIp = parseStringField(body, "serverIp", cfg.tcp.serverIp);
     cfg.tcp.serverPort = parseUInt16Field(body, "serverPort", cfg.tcp.serverPort);
     cfg.tcp.listenPort = parseUInt16Field(body, "listenPort", cfg.tcp.listenPort);
 
     cfg.scaleTcp.enabled = parseBoolField(body, "scaleEnabled", cfg.scaleTcp.enabled);
-
     const String scaleMode = parseStringField(body, "scaleMode", "");
-    if (scaleMode == "client" || scaleMode == "host" || scaleMode == "server") {
-        cfg.scaleTcp.mode = ConfigManager::tcpModeFromString(scaleMode);
-    }
-
+    if (scaleMode == "client" || scaleMode == "host" || scaleMode == "server") cfg.scaleTcp.mode = ConfigManager::tcpModeFromString(scaleMode);
     cfg.scaleTcp.serverIp = parseStringField(body, "scaleServerIp", cfg.scaleTcp.serverIp);
     cfg.scaleTcp.serverPort = parseUInt16Field(body, "scaleServerPort", cfg.scaleTcp.serverPort);
     cfg.scaleTcp.listenPort = parseUInt16Field(body, "scaleListenPort", cfg.scaleTcp.listenPort);
 
     cfg.rfid.enabled = parseBoolField(body, "rfidEnabled", cfg.rfid.enabled);
     cfg.rfid.baudRate = parseUInt32Field(body, "baudRate", cfg.rfid.baudRate);
-
     const String rfidEnc = parseStringField(body, "encoding", "");
-    if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw" || rfidEnc == "scale_frame") {
-        cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(rfidEnc);
-    }
+    if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw" || rfidEnc == "scale_frame") cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(rfidEnc);
+
+    cfg.qr.enabled = parseBoolField(body, "qrEnabled", cfg.qr.enabled);
+    cfg.qr.baudRate = parseUInt32Field(body, "qrBaudRate", cfg.qr.baudRate);
 
     cfg.display.enabled = parseBoolField(body, "displayEnabled", cfg.display.enabled);
     cfg.display.contrast = static_cast<uint8_t>(parseUInt16Field(body, "contrast", cfg.display.contrast));
+    cfg.display.flow.enabled = parseBoolField(body, "flowEnabled", cfg.display.flow.enabled);
 
     cfg.keypad.enabled = parseBoolField(body, "keypadEnabled", cfg.keypad.enabled);
     cfg.keypad.pcf8574Address = static_cast<uint8_t>(parseUInt16Field(body, "pcf8574Address", cfg.keypad.pcf8574Address));

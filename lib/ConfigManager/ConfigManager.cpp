@@ -1,9 +1,5 @@
 #include "ConfigManager.h"
 
-/*
- * Jeden namespace Preferences dla całego terminala.
- * Dzięki temu po aktualizacji firmware zachowujemy ustawienia urządzenia.
- */
 bool ConfigManager::begin() {
     return prefs_.begin("ct100", false);
 }
@@ -28,10 +24,6 @@ DeviceConfig ConfigManager::load() {
     config_.scaleTcp.serverPort = prefs_.getUShort("sc_sport", config_.scaleTcp.serverPort);
     config_.scaleTcp.listenPort = prefs_.getUShort("sc_lport", config_.scaleTcp.listenPort);
 
-    /*
-     * Zachowujemy kompatybilność wsteczną:
-     * stare klucze web_user/web_pass nadal są czytane jako fallback.
-     */
     config_.security.adminUser = prefs_.getString("adm_user", prefs_.getString("web_user", config_.security.adminUser));
     config_.security.adminPassword = prefs_.getString("adm_pass", prefs_.getString("web_pass", config_.security.adminPassword));
     config_.security.serviceUser = prefs_.getString("svc_user", config_.security.serviceUser);
@@ -41,6 +33,9 @@ DeviceConfig ConfigManager::load() {
     config_.rfid.encoding = static_cast<RfidEncoding>(prefs_.getUChar("rfid_enc", static_cast<uint8_t>(config_.rfid.encoding)));
     config_.rfid.baudRate = prefs_.getULong("rfid_baud", config_.rfid.baudRate);
     config_.rfid.enabled = prefs_.getBool("rfid_en", config_.rfid.enabled);
+
+    config_.qr.enabled = prefs_.getBool("qr_en", config_.qr.enabled);
+    config_.qr.baudRate = prefs_.getULong("qr_baud", config_.qr.baudRate);
 
     config_.display.enabled = prefs_.getBool("disp_en", config_.display.enabled);
     config_.display.contrast = prefs_.getUChar("disp_ctr", config_.display.contrast);
@@ -126,6 +121,9 @@ bool ConfigManager::save(const DeviceConfig& config) {
     prefs_.putUChar("rfid_enc", static_cast<uint8_t>(config.rfid.encoding));
     prefs_.putULong("rfid_baud", config.rfid.baudRate);
     prefs_.putBool("rfid_en", config.rfid.enabled);
+
+    prefs_.putBool("qr_en", config.qr.enabled);
+    prefs_.putULong("qr_baud", config.qr.baudRate);
 
     prefs_.putBool("disp_en", config.display.enabled);
     prefs_.putUChar("disp_ctr", config.display.contrast);
