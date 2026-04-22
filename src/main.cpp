@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "NetManager.h"
 #include "Pins.h"
+#include "QrCamGm805.h"
 #include "Rfid125kHzUart.h"
 #include "RfidFrameEncoder.h"
 #include "ShiftRegister74HC595.h"
@@ -28,6 +29,7 @@ TcpManager scaleTcpManager(logger);
 WebConfigServer webServer(logger);
 DiscoveryService discoveryService;
 ShiftRegister74HC595 outputs595(Pins::SHIFT595_DATA, Pins::SHIFT595_CLOCK, Pins::SHIFT595_LATCH);
+QrCamGm805 qrCam(logger);
 
 DeviceConfig cfg;
 unsigned long lastStatusRefresh = 0;
@@ -41,11 +43,19 @@ String remoteStatusText = "Oczekuje na wazenie";
 unsigned long remoteStatusUntil = 0;
 String currentWeight = "---";
 unsigned long lastWeightAt = 0;
-String qrLastData;
 String lastWebCode;
 String qrLastPublished;
 String qrLastCommandHex;
 String qrLastCommandStatus;
+String qrLastRawAscii;
+String qrLastRawHex;
+String qrRuntimeStatus;
+String qrLastFinalizeReason;
+uint32_t qrLastByteAt = 0;
+uint32_t qrLastFrameAt = 0;
+uint16_t qrCurrentBytesCount = 0;
+uint16_t qrLastFrameBytesCount = 0;
+bool qrFrameOpen = false;
 
 bool out1State = false;
 bool out2State = false;
@@ -70,7 +80,6 @@ struct FlowRuntime {
     String summary = "";
 } flow;
 
-
 static String trimCopy(const String& value) {
     String out = value;
     out.trim();
@@ -81,92 +90,6 @@ static String normalizeQrLinePrefix(const String& value) {
     String out = trimCopy(value);
     if (out.isEmpty()) out = "QR:";
     return out;
-}
-
-static String cleanHexLine(String line) {
-    line.trim();
-    const int hashPos = line.indexOf('#');
-    if (hashPos >= 0) line = line.substring(0, hashPos);
-    String out;
-    out.reserve(line.length());
-    for (size_t i = 0; i < line.length(); ++i) {
-        const char c = line[i];
-        if (isxdigit((unsigned char)c)) out += (char)toupper((unsigned char)c);
-    }
-    return out;
-}
-
-static bool qrSendHexCommand(const String& inputHex, const char* tag) {
-    String hex = cleanHexLine(inputHex);
-    if (hex.isEmpty()) {
-        qrLastCommandStatus = "EMPTY";
-        return false;
-    }
-    if ((hex.length() % 2) != 0) {
-        qrLastCommandHex = hex;
-        qrLastCommandStatus = "HEX_LEN_ERR";
-        logger.error(String("GM805 invalid hex len ") + tag + ": " + hex);
-        return false;
-    }
-    qrLastCommandHex = hex;
-    for (size_t i = 0; i < hex.length(); i += 2) {
-        const String byteText = hex.substring(i, i + 2);
-        const uint8_t value = (uint8_t)strtoul(byteText.c_str(), nullptr, 16);
-        Serial1.write(value);
-    }
-    Serial1.flush();
-    qrLastCommandStatus = "OK";
-    logger.info(String("GM805 cmd ") + tag + ": " + hex);
-    return true;
-}
-
-static void qrApplyStartupCommands() {
-    if (!cfg.qr.enabled || !cfg.qr.applyStartupCommands) return;
-    const String all = cfg.qr.startupCommandsHex;
-    if (all.isEmpty()) return;
-    delay(cfg.qr.startupCommandDelayMs);
-    int start = 0;
-    while (start <= (int)all.length()) {
-        int end = all.indexOf('\n', start);
-        if (end < 0) end = all.length();
-        String line = all.substring(start, end);
-        line.trim();
-        if (!line.isEmpty()) qrSendHexCommand(line, "startup");
-        start = end + 1;
-        delay(cfg.qr.interCommandDelayMs);
-    }
-    if (cfg.qr.saveToFlashAfterApply) {
-        qrSendHexCommand("7E 00 09 01 00 00 00 DE C8", "save_flash");
-    }
-}
-
-static void beepBuzzer(unsigned long durationMs);
-static void updateFlowStep();
-
-static String qrPreviewForLcd(const String& value, size_t maxLen = 18) {
-    String out = trimCopy(value);
-    if (out.length() > maxLen) out = out.substring(0, maxLen - 3) + "...";
-    return out;
-}
-
-static String idleHintText() {
-    if (!qrLastPublished.isEmpty()) return "QR: " + qrPreviewForLcd(qrLastPublished, 14);
-    return "Zbliz karte RFID";
-}
-
-static void qrPublishDecoded(const String& value) {
-    qrLastData = value;
-    qrLastPublished = value;
-    const String prefix = normalizeQrLinePrefix(cfg.qr.linePrefix);
-    const String payload = prefix + value;
-    lastOutboundFrame = payload;
-    if (cfg.qr.sendToTcp) tcpManager.sendLine(payload);
-    lcdCustomText = String("QR:") + "\n" + qrPreviewForLcd(value, 24);
-    lcdCustomUntil = millis() + 7000UL;
-    if (cfg.display.enabled) display.showTcp(lcdCustomText);
-    beepBuzzer(60);
-    logger.info("QR: " + value);
-    if (flow.active && flow.currentStep == "QR") { flow.qrDone = true; updateFlowStep(); }
 }
 
 static String jsonEscapeLocal(const String& value) {
@@ -180,7 +103,9 @@ static String jsonEscapeLocal(const String& value) {
             case '\n': out += "\\n"; break;
             case '\r': out += "\\r"; break;
             case '\t': out += "\\t"; break;
-            default: if ((uint8_t)c >= 32) out += c; break;
+            default:
+                if ((uint8_t)c >= 32) out += c;
+                break;
         }
     }
     return out;
@@ -263,6 +188,14 @@ static String buildStatusText() {
     out += "ip=" + netManager.localIP().toString() + "\n";
     out += "rfid_last=" + lastCard + "\n";
     out += "qr_last=" + qrLastPublished + "\n";
+    out += "qr_raw_ascii=" + qrLastRawAscii + "\n";
+    out += "qr_raw_hex=" + qrLastRawHex + "\n";
+    out += "qr_status=" + qrRuntimeStatus + "\n";
+    out += "qr_finalize_reason=" + qrLastFinalizeReason + "\n";
+    out += "qr_current_bytes=" + String(qrCurrentBytesCount) + "\n";
+    out += "qr_last_frame_bytes=" + String(qrLastFrameBytesCount) + "\n";
+    out += "qr_last_byte_at=" + String(qrLastByteAt) + "\n";
+    out += "qr_last_frame_at=" + String(qrLastFrameAt) + "\n";
     out += "qr_prefix=" + normalizeQrLinePrefix(cfg.qr.linePrefix) + "\n";
     out += "qr_last_cmd=" + qrLastCommandHex + "\n";
     out += "qr_last_cmd_status=" + qrLastCommandStatus + "\n";
@@ -334,17 +267,33 @@ static void renderFlowScreen() {
         return;
     }
     if (flow.currentStep == "QR") {
-        display.showInputScreen("FLOW / QR", qrLastData.isEmpty() ? "SCAN" : qrLastData, "Zeskanuj kod QR");
+        display.showInputScreen("FLOW / QR", qrLastPublished.isEmpty() ? "SCAN" : qrLastPublished, "Zeskanuj kod QR");
         return;
     }
     if (flow.currentStep == "SUMMARY") {
         display.showSummaryScreen(
             String("RFID: ") + (lastCard.isEmpty() ? "-" : lastCard),
             String("KEY: ") + (lastWebCode.isEmpty() ? lastKey : lastWebCode),
-            String("QR: ") + (qrLastPublished.isEmpty() ? (qrLastData.isEmpty() ? "-" : qrLastData) : qrLastPublished),
+            String("QR: ") + (qrLastPublished.isEmpty() ? "-" : qrLastPublished),
             buildWeightForDisplay());
         return;
     }
+}
+
+static void refreshQrDiagnostics() {
+    const auto d = qrCam.diagnostics();
+    qrLastPublished = d.lastDecoded;
+    qrLastRawAscii = d.lastRawAscii;
+    qrLastRawHex = d.lastRawHex;
+    qrLastCommandHex = d.lastCommandHex;
+    qrLastCommandStatus = d.lastCommandStatus;
+    qrLastFinalizeReason = d.lastFinalizeReason;
+    qrRuntimeStatus = d.runtimeStatus;
+    qrLastByteAt = d.lastByteAt;
+    qrLastFrameAt = d.lastFrameAt;
+    qrCurrentBytesCount = d.currentBytesCount;
+    qrLastFrameBytesCount = d.lastFrameBytesCount;
+    qrFrameOpen = d.frameOpen;
 }
 
 static void applyRuntimeConfig() {
@@ -372,8 +321,10 @@ static void applyRuntimeConfig() {
         rfidStatus = "OFF";
     }
 
-    Serial1.begin(cfg.qr.baudRate, SERIAL_8N1, Pins::QR_RX, Pins::QR_TX);
-    qrApplyStartupCommands();
+    qrCam.begin(cfg.qr, Pins::QR_RX, Pins::QR_TX);
+    qrCam.applyStartupCommands();
+    refreshQrDiagnostics();
+
     keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
 
     tcpManager.begin(cfg.tcp);
@@ -383,6 +334,9 @@ static void applyRuntimeConfig() {
         s.serverIp = cfg.scaleTcp.serverIp;
         s.serverPort = cfg.scaleTcp.serverPort;
         s.listenPort = cfg.scaleTcp.listenPort;
+        s.autoReconnect = cfg.scaleTcp.autoReconnect;
+        s.reconnectIntervalMs = cfg.scaleTcp.reconnectIntervalMs;
+        s.connectTimeoutMs = cfg.scaleTcp.connectTimeoutMs;
         scaleTcpManager.begin(s);
     }
 
@@ -502,9 +456,22 @@ void setup() {
         if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; updateFlowStep(); }
     });
 
+    qrCam.onDecoded([](const String& value) {
+        refreshQrDiagnostics();
+        qrLastPublished = value;
+        const String prefix = normalizeQrLinePrefix(cfg.qr.linePrefix);
+        const String payload = prefix + value;
+        lastOutboundFrame = payload;
+        if (cfg.qr.sendToTcp) tcpManager.sendLine(payload);
+        beepBuzzer(60);
+        logger.info("QR: " + value);
+        if (flow.active && flow.currentStep == "QR") { flow.qrDone = true; updateFlowStep(); }
+    });
+
     webServer.setConfigProvider([]() { return cfg; });
     webServer.setStatusProvider([]() { return buildStatusText(); });
     webServer.setRuntimeJsonProvider([]() {
+        refreshQrDiagnostics();
         String out;
         const bool cmdTcpConnected = tcpManager.isConnected() || tcpManager.hasClient();
         const bool scaleConnected = cfg.scaleTcp.enabled && (scaleTcpManager.isConnected() || scaleTcpManager.hasClient());
@@ -513,6 +480,15 @@ void setup() {
         out += "\"uptimeMs\":" + String(millis()) + ",";
         out += "\"rfidLast\":\"" + jsonEscapeLocal(lastCard) + "\",";
         out += "\"qrLast\":\"" + jsonEscapeLocal(qrLastPublished) + "\",";
+        out += "\"qrLastRawAscii\":\"" + jsonEscapeLocal(qrLastRawAscii) + "\",";
+        out += "\"qrLastRawHex\":\"" + jsonEscapeLocal(qrLastRawHex) + "\",";
+        out += "\"qrRuntimeStatus\":\"" + jsonEscapeLocal(qrRuntimeStatus) + "\",";
+        out += "\"qrLastFinalizeReason\":\"" + jsonEscapeLocal(qrLastFinalizeReason) + "\",";
+        out += "\"qrCurrentBytesCount\":" + String(qrCurrentBytesCount) + ",";
+        out += "\"qrLastFrameBytesCount\":" + String(qrLastFrameBytesCount) + ",";
+        out += "\"qrLastByteAt\":" + String(qrLastByteAt) + ",";
+        out += "\"qrLastFrameAt\":" + String(qrLastFrameAt) + ",";
+        out += "\"qrFrameOpen\":" + String(qrFrameOpen ? "true" : "false") + ",";
         out += "\"qrPrefix\":\"" + jsonEscapeLocal(normalizeQrLinePrefix(cfg.qr.linePrefix)) + "\",";
         out += "\"qrLastCommandHex\":\"" + jsonEscapeLocal(qrLastCommandHex) + "\",";
         out += "\"qrLastCommandStatus\":\"" + jsonEscapeLocal(qrLastCommandStatus) + "\",";
@@ -552,10 +528,11 @@ void setup() {
     webServer.onFlowCancel([]() { cancelWeighFlow(); });
     webServer.onQrCommand([](const String& cmd) {
         String value = trimCopy(cmd);
-        if (value.equalsIgnoreCase("APPLY_STARTUP")) { qrApplyStartupCommands(); return; }
-        if (value.equalsIgnoreCase("SAVE_FLASH")) { qrSendHexCommand("7E 00 09 01 00 00 00 DE C8", "web_save_flash"); return; }
-        if (value.startsWith("HEX:")) { qrSendHexCommand(value.substring(4), "web_hex"); return; }
-        qrSendHexCommand(value, "web_raw");
+        if (value.equalsIgnoreCase("APPLY_STARTUP")) { qrCam.applyStartupCommands(); refreshQrDiagnostics(); return; }
+        if (value.equalsIgnoreCase("SAVE_FLASH")) { qrCam.sendHexCommand("7E 00 09 01 00 00 00 DE C8", "web_save_flash"); refreshQrDiagnostics(); return; }
+        if (value.startsWith("HEX:")) { qrCam.sendHexCommand(value.substring(4), "web_hex"); refreshQrDiagnostics(); return; }
+        qrCam.sendHexCommand(value, "web_raw");
+        refreshQrDiagnostics();
     });
     webServer.onReboot([]() { ESP.restart(); });
 }
@@ -569,23 +546,9 @@ void loop() {
     if (cfg.discovery.enabled) discoveryService.loop();
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();
+    if (cfg.qr.enabled) qrCam.loop();
 
-    if (cfg.qr.enabled) {
-        while (Serial1.available()) {
-            char c = (char)Serial1.read();
-            if (c == '\n' || c == '\r') {
-                if (!qrLastData.isEmpty()) {
-                    qrLastData.trim();
-                    if (!qrLastData.isEmpty()) qrPublishDecoded(qrLastData);
-                    qrLastData = "";
-                }
-            } else if (isPrintable((int)c)) {
-                qrLastData += c;
-                const size_t maxLen = cfg.qr.maxFrameLength > 0 ? cfg.qr.maxFrameLength : 256;
-                if (qrLastData.length() > maxLen) qrLastData.remove(0, qrLastData.length() - maxLen);
-            }
-        }
-    }
+    refreshQrDiagnostics();
 
     if (buzzerState && buzzerOffAt > 0 && millis() >= buzzerOffAt) {
         setBuzzer(false);
@@ -601,7 +564,7 @@ void loop() {
         } else if (lcdCustomUntil > millis()) {
             display.showTcp(lcdCustomText);
         } else {
-            display.showIdleWeight(activeHeaderText(), buildWeightForDisplay(), idleHintText());
+            display.showIdleWeight(activeHeaderText(), buildWeightForDisplay(), "Zbliz karte RFID");
         }
     }
 }

@@ -61,6 +61,10 @@ struct QrSettings {
     uint16_t startupCommandDelayMs = 120;
     uint16_t interCommandDelayMs = 80;
     uint16_t maxFrameLength = 256;
+    uint16_t frameIdleTimeoutMs = 100;
+    bool acceptCr = true;
+    bool acceptLf = true;
+    bool publishHexOnlyFrames = false;
     String linePrefix = "QR:";
     String startupCommandsHex = "";
 };
@@ -74,12 +78,7 @@ struct FlowSettings {
     uint16_t resultScreenMs;
 
     FlowSettings()
-        : enabled(true),
-          remoteTriggerEnabled(true),
-          weightTriggerEnabled(true),
-          weightThresholdKg(500),
-          summaryScreenMs(2500),
-          resultScreenMs(2500) {}
+        : enabled(true), remoteTriggerEnabled(true), weightTriggerEnabled(true), weightThresholdKg(500), summaryScreenMs(2500), resultScreenMs(2500) {}
 };
 
 struct FlowScreenSettings {
@@ -91,9 +90,7 @@ struct FlowScreenSettings {
     String line2;
     String hint;
 
-    FlowScreenSettings()
-        : enabled(true), order(1), name("Ekran"), title(""), line1(""), line2(""), hint("") {}
-
+    FlowScreenSettings() : enabled(true), order(1), name("Ekran"), title(""), line1(""), line2(""), hint("") {}
     FlowScreenSettings(bool enabled_, uint8_t order_, const String& name_, const String& title_, const String& line1_, const String& line2_, const String& hint_)
         : enabled(enabled_), order(order_), name(name_), title(title_), line1(line1_), line2(line2_), hint(hint_) {}
 };

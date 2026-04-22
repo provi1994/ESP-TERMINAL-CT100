@@ -1,3 +1,4 @@
+
 #include "WebConfigServer.h"
 
 #include <ETH.h>
@@ -427,50 +428,66 @@ String WebConfigServer::buildPage(const DeviceConfig& cfg) {
 <!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CT-100 panel</title>
 <style>
-:root{--bg:#eef2f5;--card:#ffffff;--line:#d9e0e6;--text:#13202b;--muted:#5b6570;--blue:#0077C0;--green:#119700;--red:#A60000;--gray:#4B4D4F;--orange:#F18A00;}
+:root{--bg:#eef2f5;--card:#fff;--line:#d8e0e8;--text:#14212b;--muted:#60707d;--blue:#0077C0;--green:#15803d;--red:#b42318;--gray:#475467;--orange:#f18a00;--tab:#f7fafc;--tabActive:#0f172a;}
 *{box-sizing:border-box}body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:18px}.wrap{max-width:1500px;margin:0 auto}
-.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
+.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(16,24,40,.06)}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.grid5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer}.blue{background:var(--blue);color:#fff}.green{background:var(--green);color:#fff}.red{background:var(--red);color:#fff}.gray{background:var(--gray);color:#fff}.orange{background:var(--orange);color:#fff}.light{background:#fff;color:var(--text);border:1px solid var(--line)}
-label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd8e3;border-radius:12px;background:#fff}textarea{min-height:140px}h1,h2,h3{margin:0 0 8px 0}.actions{display:flex;gap:10px;flex-wrap:wrap}.muted{color:var(--muted)}.mono{font-family:monospace}.pill{display:inline-block;padding:6px 10px;background:#e9f4fb;border-radius:999px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
-#errorBox{display:none;background:#fff2f2;border:1px solid #ffcccc;color:#8a0000;padding:12px;border-radius:12px;margin-bottom:12px;white-space:pre-wrap}.okBox{display:none;background:#f2fff2;border:1px solid #c8eec8;color:#0d6d0d;padding:12px;border-radius:12px;margin-bottom:12px}
-.tableLike{display:grid;grid-template-columns:180px 1fr;gap:6px 12px;font-size:14px}.tableLike div:nth-child(odd){font-weight:700;color:var(--muted)}
+label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase}input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cfd8e3;border-radius:12px;background:#fff}textarea{min-height:140px}h1,h2,h3{margin:0 0 8px 0}.actions{display:flex;gap:10px;flex-wrap:wrap}.muted{color:var(--muted)}.mono{font-family:monospace}.pill{display:inline-block;padding:7px 11px;background:#eaf4fb;border-radius:999px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+#errorBox{display:none;background:#fff4f4;border:1px solid #fecaca;color:#991b1b;padding:12px;border-radius:12px;margin-bottom:12px;white-space:pre-wrap}.okBox{display:none;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:12px;border-radius:12px;margin-bottom:12px}
+.kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.kpi .box{padding:12px;border:1px solid var(--line);border-radius:14px;background:#fbfdff}.kpi .name{font-size:12px;color:var(--muted);text-transform:uppercase;font-weight:700}.kpi .val{font-size:20px;font-weight:700;margin-top:8px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.tabbtn{padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--tab);cursor:pointer;font-weight:700}.tabbtn.active{background:var(--tabActive);color:#fff;border-color:var(--tabActive)}.tab{display:none}.tab.active{display:block}
 .lcdBox{margin-top:12px;border:2px solid #1f2937;border-radius:14px;background:#d7e3c0;padding:14px;min-height:250px}.lcdTitle{font-family:monospace;font-size:13px;color:#0b1f11;font-weight:700;margin-bottom:8px}.lcdLine1{font-family:monospace;font-size:20px;color:#102417;font-weight:700;margin:10px 0}.lcdLine{font-family:monospace;font-size:16px;color:#102417;margin:10px 0}
-@media(max-width:1100px){.grid,.grid3,.grid4,.grid5,.row{grid-template-columns:1fr}}
+.badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef2ff;font-size:12px;font-weight:700}.toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}.small{font-size:12px}
+@media(max-width:1100px){.grid,.grid3,.grid4,.grid5,.row,.kpi{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
-<div class="top"><div><h1>CT-100 · panel konfiguracyjny</h1><div class="muted">Pełny webserver: RFID, QR / kamera GM805-L, flow, LCD, wyjścia, TCP komend, TCP wagi, runtime i diagnostyka.</div></div><div class="actions"><button class="btn light" onclick="openUrl('/status')">Status</button><button class="btn light" onclick="openUrl('/logs')">Logi</button><button class="btn light" onclick="openUrl('/firmware')">Firmware</button><button class="btn red" onclick="reboot()">Restart</button></div></div>
+<div class="top"><div><h1>CT-100 · panel operatorski</h1><div class="muted">Dashboard, sterowanie, moduły, sieć/TCP, LCD/flow i serwis w jednym panelu.</div></div><div class="actions"><button class="btn light" onclick="openUrl('/status')">Status</button><button class="btn light" onclick="openUrl('/logs')">Logi</button><button class="btn light" onclick="openUrl('/firmware')">Firmware</button><button class="btn red" onclick="reboot()">Restart</button></div></div>
 <div id="errorBox"></div><div id="okBox" class="okBox"></div>
+<div class="tabs">
+<button class="tabbtn active" data-tab="dash">Dashboard</button>
+<button class="tabbtn" data-tab="control">Sterowanie</button>
+<button class="tabbtn" data-tab="modules">Moduły</button>
+<button class="tabbtn" data-tab="network">Sieć i TCP</button>
+<button class="tabbtn" data-tab="lcd">LCD i flow</button>
+<button class="tabbtn" data-tab="service">Serwis</button>
+</div>
 
+<div id="tab-dash" class="tab active">
+<div class="card"><div class="kpi"><div class="box"><div class="name">IP</div><div class="val" id="kpi_ip">-</div></div><div class="box"><div class="name">Flow</div><div class="val" id="kpi_flow">-</div></div><div class="box"><div class="name">Waga</div><div class="val" id="kpi_weight">-</div></div><div class="box"><div class="name">TCP CMD</div><div class="val" id="kpi_tcp">-</div></div></div></div>
+<div class="grid" style="margin-top:16px">
+<div class="card"><h2>Runtime live</h2><div id="runtimePills"></div><div class="row" style="margin-top:12px"><div><label>Runtime JSON</label><textarea id="runtimeBox" class="mono" readonly></textarea></div><div><label>Status TXT</label><textarea id="statusBox" class="mono" readonly></textarea></div></div></div>
+<div class="card"><h2>Podgląd LCD</h2><div class="lcdBox"><div id="lcd_title" class="lcdTitle">LCD OFF</div><div id="lcd_line1" class="lcdLine1">-</div><div id="lcd_line2" class="lcdLine">-</div><div id="lcd_line3" class="lcdLine">-</div><div id="lcd_line4" class="lcdLine">-</div></div><div class="small muted" style="margin-top:10px">Podgląd nie nadpisuje formularza. Runtime odświeża się stale, konfiguracja tylko na żądanie albo po zapisie.</div></div>
+</div>
+</div>
+
+<div id="tab-control" class="tab">
 <div class="grid">
-<div class="card"><h2>Podgląd runtime</h2><div id="runtimePills"></div><div class="tableLike" style="margin-top:10px"><div>IP</div><div id="rt_ip">-</div><div>RFID</div><div id="rt_rfid">-</div><div>QR</div><div id="rt_qr">-</div><div>Klawisz</div><div id="rt_key">-</div><div>Kod WWW</div><div id="rt_code">-</div><div>TCP cmd</div><div id="rt_cmd_tcp">-</div><div>TCP waga</div><div id="rt_scale_tcp">-</div><div>OUT1/OUT2/Buzzer</div><div id="rt_outputs">-</div><div>Flow</div><div id="rt_flow">-</div></div></div>
-<div class="card"><h2>Podgląd LCD live</h2><div class="muted">Podgląd budowany z runtime. Gdy firmware wystawia dokładne pola LCD, będą użyte. W przeciwnym razie panel pokazuje sensowną symulację aktualnego ekranu.</div><div class="lcdBox"><div id="lcd_title" class="lcdTitle">LCD OFF</div><div id="lcd_line1" class="lcdLine1">-</div><div id="lcd_line2" class="lcdLine">-</div><div id="lcd_line3" class="lcdLine">-</div><div id="lcd_line4" class="lcdLine">-</div></div></div>
+<div class="card"><h2>Wyjścia i flow</h2><div class="actions"><button class="btn green" onclick="postSimple('/api/output/out1/on')">OUT1 ON</button><button class="btn gray" onclick="postSimple('/api/output/out1/off')">OUT1 OFF</button><button class="btn green" onclick="postSimple('/api/output/out2/on')">OUT2 ON</button><button class="btn gray" onclick="postSimple('/api/output/out2/off')">OUT2 OFF</button><button class="btn orange" onclick="buzz()">Buzzer</button></div><div class="actions" style="margin-top:12px"><button class="btn blue" onclick="postSimple('/api/flow/start')">Start flow</button><button class="btn red" onclick="postSimple('/api/flow/cancel')">Anuluj flow</button></div></div>
+<div class="card"><h2>Wirtualna klawiatura</h2><div class="row"><div><label>Wirtualny klawisz</label><input id="virtKey" value="F1"></div><div><label>Wirtualny kod</label><input id="virtCode" placeholder="np. 12345"></div></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="sendKey()">Wyślij klawisz</button><button class="btn blue" onclick="sendCode()">Wyślij kod</button></div></div>
+</div>
 </div>
 
-<div class="grid" style="margin-top:16px">
-<div class="card"><h2>Szybkie sterowanie</h2><div class="actions"><button class="btn green" onclick="postSimple('/api/output/out1/on')">OUT1 ON</button><button class="btn gray" onclick="postSimple('/api/output/out1/off')">OUT1 OFF</button><button class="btn green" onclick="postSimple('/api/output/out2/on')">OUT2 ON</button><button class="btn gray" onclick="postSimple('/api/output/out2/off')">OUT2 OFF</button><button class="btn orange" onclick="buzz()">Buzzer</button></div><div class="actions" style="margin-top:12px"><button class="btn green" onclick="postSimple('/api/flow/start')">Start flow</button><button class="btn red" onclick="postSimple('/api/flow/cancel')">Anuluj flow</button></div><div class="row" style="margin-top:14px"><div><label>Wirtualny klawisz</label><input id="virtKey" value="F1"></div><div><label>Wirtualny kod</label><input id="virtCode" placeholder="np. 12345"></div></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="sendKey()">Wyślij klawisz</button><button class="btn blue" onclick="sendCode()">Wyślij kod</button></div></div>
-<div class="card"><h2>Runtime / status</h2><div class="row"><div><label>Runtime JSON</label><textarea id="runtimeBox" class="mono" readonly></textarea></div><div><label>Status TXT</label><textarea id="statusBox" class="mono" readonly></textarea></div></div></div>
+<div id="tab-modules" class="tab">
+<div class="grid" style="margin-top:0">
+<div class="card"><h2>RFID</h2><div class="grid3"><div><label>Włączone</label><select id="rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Baud</label><input id="rfidBaudRate" type="number"></div><div><label>Encoding</label><select id="rfidEncoding"><option value="hex">HEX</option><option value="dec">DEC</option><option value="raw">RAW</option><option value="scale_frame">SCALE FRAME</option></select></div></div><div class="badge" style="margin-top:10px">Ostatni RFID: <span id="rt_rfid">-</span></div></div>
+<div class="card"><h2>QR / GM805-L</h2><div class="grid4"><div><label>QR enabled</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR baud</label><input id="qrBaudRate" type="number"></div><div><label>QR -&gt; TCP</label><select id="qrSendToTcp"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR publish web</label><select id="qrPublishToWeb"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Prefix linii</label><input id="qrLinePrefix"></div><div><label>Apply startup</label><select id="qrApplyStartupCommands"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Save to flash</label><select id="qrSaveToFlashAfterApply"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Max frame len</label><input id="qrMaxFrameLength" type="number"></div><div><label>Startup delay [ms]</label><input id="qrStartupCommandDelayMs" type="number"></div><div><label>Inter-command delay [ms]</label><input id="qrInterCommandDelayMs" type="number"></div></div><label style="margin-top:12px">Startup commands HEX</label><textarea id="qrStartupCommandsHex" class="mono"></textarea><div class="actions" style="margin-top:10px"><button class="btn light" onclick="appendPreset('Baud 9600')">Baud 9600</button><button class="btn light" onclick="appendPreset('Find baud')">Find baud</button><button class="btn light" onclick="appendPreset('Continuous profile')">Continuous</button><button class="btn light" onclick="appendPreset('Trigger mode')">Trigger mode</button><button class="btn light" onclick="appendPreset('Full area + all barcodes')">Full area</button><button class="btn light" onclick="appendPreset('Allow Code39')">Code39</button><button class="btn light" onclick="appendPreset('AIM ID on')">AIM ID on</button><button class="btn light" onclick="appendPreset('AIM ID off')">AIM ID off</button></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="applyQrStartupNow()">Wyślij startup</button><button class="btn orange" onclick="saveQrFlashNow()">Save flash</button><button class="btn gray" onclick="clearQrCommands()">Wyczyść</button></div><div class="row" style="margin-top:10px"><div><label>Jednorazowa komenda HEX</label><input id="qrHexNow" class="mono"></div><div><label>&nbsp;</label><button class="btn blue" onclick="sendQrHexNow()">Wyślij teraz</button></div></div><div class="row" style="margin-top:10px"><div><label>Ostatnia komenda HEX</label><input id="qrLastCommandHex" readonly class="mono"></div><div><label>Status komendy</label><input id="qrLastCommandStatus" readonly></div></div><div class="badge" style="margin-top:10px">Ostatni QR: <span id="rt_qr">-</span></div></div>
+</div>
+<div class="card" style="margin-top:16px"><h2>Klawiatura i discovery</h2><div class="grid4"><div><label>Klawiatura</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>PCF8574 address</label><input id="pcf8574Address" type="number"></div><div><label>Discovery</label><select id="discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>UDP port</label><input id="discoveryPort" type="number"></div></div></div>
 </div>
 
-<div class="card" style="margin-top:16px"><h2>Sieć Ethernet</h2><div class="grid5"><div><label>Nazwa urządzenia</label><input id="deviceName"></div><div><label>Tryb sieci</label><select id="networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div><div><label>IP</label><input id="networkIp"></div><div><label>Gateway</label><input id="networkGateway"></div><div><label>Subnet</label><input id="networkSubnet"></div><div><label>DNS1</label><input id="networkDns1"></div><div><label>DNS2</label><input id="networkDns2"></div></div></div>
-
-<div class="grid" style="margin-top:16px">
-<div class="card"><h2>TCP komend</h2><div class="grid4"><div><label>Tryb</label><select id="tcpMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div><div><label>Server IP</label><input id="tcpServerIp"></div><div><label>Server Port</label><input id="tcpServerPort" type="number"></div><div><label>Listen Port</label><input id="tcpListenPort" type="number"></div><div><label>Auto reconnect</label><select id="tcpAutoReconnect"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Reconnect interval [ms]</label><input id="tcpReconnectIntervalMs" type="number"></div><div><label>Connect timeout [ms]</label><input id="tcpConnectTimeoutMs" type="number"></div></div></div>
-<div class="card"><h2>TCP wagi</h2><div class="grid4"><div><label>Włączone</label><select id="scaleEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Tryb</label><select id="scaleMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div><div><label>Server IP</label><input id="scaleServerIp"></div><div><label>Server Port</label><input id="scaleServerPort" type="number"></div><div><label>Listen Port</label><input id="scaleListenPort" type="number"></div><div><label>Auto reconnect</label><select id="scaleAutoReconnect"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Reconnect interval [ms]</label><input id="scaleReconnectIntervalMs" type="number"></div><div><label>Connect timeout [ms]</label><input id="scaleConnectTimeoutMs" type="number"></div></div></div>
+<div id="tab-network" class="tab">
+<div class="card"><div class="toolbar"><h2>Sieć i TCP</h2><div class="actions"><button class="btn light" onclick="loadConfig(true)">Odśwież konfigurację</button><button class="btn blue" onclick="saveConfig()">Zapisz konfigurację</button></div></div><div class="small muted">Formularz nie jest nadpisywany podczas auto-refresh runtime. Gdy edytujesz pola, panel zachowuje zmiany lokalnie aż do zapisu lub ręcznego reloadu.</div></div>
+<div class="card" style="margin-top:16px"><h2>Ethernet</h2><div class="grid5"><div><label>Nazwa urządzenia</label><input id="deviceName"></div><div><label>Tryb sieci</label><select id="networkMode"><option value="dhcp">DHCP</option><option value="static">STATIC</option></select></div><div><label>IP</label><input id="networkIp"></div><div><label>Gateway</label><input id="networkGateway"></div><div><label>Subnet</label><input id="networkSubnet"></div><div><label>DNS1</label><input id="networkDns1"></div><div><label>DNS2</label><input id="networkDns2"></div></div></div>
+<div class="grid" style="margin-top:16px"><div class="card"><h2>TCP komend</h2><div class="grid4"><div><label>Tryb</label><select id="tcpMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div><div><label>Server IP</label><input id="tcpServerIp"></div><div><label>Server Port</label><input id="tcpServerPort" type="number"></div><div><label>Listen Port</label><input id="tcpListenPort" type="number"></div><div><label>Auto reconnect</label><select id="tcpAutoReconnect"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Reconnect interval [ms]</label><input id="tcpReconnectIntervalMs" type="number"></div><div><label>Connect timeout [ms]</label><input id="tcpConnectTimeoutMs" type="number"></div></div></div><div class="card"><h2>TCP wagi</h2><div class="grid4"><div><label>Włączone</label><select id="scaleEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Tryb</label><select id="scaleMode"><option value="client">CLIENT</option><option value="host">HOST</option><option value="server">SERVER</option></select></div><div><label>Server IP</label><input id="scaleServerIp"></div><div><label>Server Port</label><input id="scaleServerPort" type="number"></div><div><label>Listen Port</label><input id="scaleListenPort" type="number"></div><div><label>Auto reconnect</label><select id="scaleAutoReconnect"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Reconnect interval [ms]</label><input id="scaleReconnectIntervalMs" type="number"></div><div><label>Connect timeout [ms]</label><input id="scaleConnectTimeoutMs" type="number"></div></div></div></div>
 </div>
 
-<div class="grid" style="margin-top:16px">
-<div class="card"><h2>RFID</h2><div class="grid3"><div><label>Włączone</label><select id="rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Baud</label><input id="rfidBaudRate" type="number"></div><div><label>Encoding</label><select id="rfidEncoding"><option value="hex">HEX</option><option value="dec">DEC</option><option value="raw">RAW</option><option value="scale_frame">SCALE FRAME</option></select></div></div></div>
-<div class="card"><h2>Klawiatura / discovery</h2><div class="grid4"><div><label>Klawiatura</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>PCF8574 address</label><input id="pcf8574Address" type="number"></div><div><label>Discovery</label><select id="discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>UDP port</label><input id="discoveryPort" type="number"></div></div></div>
+<div id="tab-lcd" class="tab">
+<div class="grid"><div class="card"><h2>LCD</h2><div class="grid3"><div><label>LCD enabled</label><select id="displayEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Contrast</label><input id="contrast" type="number"></div></div></div><div class="card"><h2>Flow</h2><div class="grid4"><div><label>Flow enabled</label><select id="flowEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Remote trigger</label><select id="flowRemoteTriggerEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Weight trigger</label><select id="flowWeightTriggerEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Weight threshold [kg]</label><input id="flowWeightThresholdKg" type="number"></div><div><label>Summary screen [ms]</label><input id="flowSummaryScreenMs" type="number"></div><div><label>Result screen [ms]</label><input id="flowResultScreenMs" type="number"></div></div></div></div>
 </div>
 
-<div class="card" style="margin-top:16px"><h2>QR / kamera GM805-L</h2><div class="muted">Panel zachowuje sekcję konfiguracji QR, komendy startup i ręczne wysyłanie HEX. Uwaga sprzętowa: w tej paczce pin QR_RX został przeniesiony na GPIO36.</div><div class="grid5" style="margin-top:12px"><div><label>QR enabled</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR baud</label><input id="qrBaudRate" type="number"></div><div><label>QR -&gt; TCP</label><select id="qrSendToTcp"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR publish web</label><select id="qrPublishToWeb"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Prefix linii</label><input id="qrLinePrefix"></div><div><label>Apply startup</label><select id="qrApplyStartupCommands"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Save to flash</label><select id="qrSaveToFlashAfterApply"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Startup delay [ms]</label><input id="qrStartupCommandDelayMs" type="number"></div><div><label>Inter-command delay [ms]</label><input id="qrInterCommandDelayMs" type="number"></div><div><label>Max frame len</label><input id="qrMaxFrameLength" type="number"></div></div><label style="margin-top:12px">Startup commands HEX</label><textarea id="qrStartupCommandsHex" class="mono" placeholder="7E 00 08 02 00 2A 39 01 A7 EA # baud 9600&#10;7E 00 08 01 00 02 01 AB CD # trigger mode"></textarea><div class="actions" style="margin-top:10px"><button class="btn light" onclick="appendPreset('Baud 9600')">Baud 9600</button><button class="btn light" onclick="appendPreset('Find baud')">Find baud</button><button class="btn light" onclick="appendPreset('Continuous profile')">Continuous</button><button class="btn light" onclick="appendPreset('Trigger mode')">Trigger mode</button><button class="btn light" onclick="appendPreset('Full area + all barcodes')">Full area</button><button class="btn light" onclick="appendPreset('Allow Code39')">Code39</button><button class="btn light" onclick="appendPreset('AIM ID on')">AIM ID on</button><button class="btn light" onclick="appendPreset('AIM ID off')">AIM ID off</button><button class="btn light" onclick="appendPreset('Save Flash')">Save Flash</button></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="applyQrStartupNow()">Wyślij startup teraz</button><button class="btn orange" onclick="saveQrFlashNow()">Save to flash teraz</button><button class="btn gray" onclick="clearQrCommands()">Wyczyść</button></div><div class="row" style="margin-top:12px"><div><label>Jednorazowa komenda HEX</label><input id="qrHexNow" class="mono" placeholder="7E 00 08 01 00 D0 80 AB CD"></div><div><label>&nbsp;</label><button class="btn blue" onclick="sendQrHexNow()">Wyślij teraz</button></div></div><div class="row" style="margin-top:12px"><div><label>Ostatnia komenda HEX</label><input id="qrLastCommandHex" readonly class="mono"></div><div><label>Status komendy</label><input id="qrLastCommandStatus" readonly></div></div></div>
-
-<div class="grid" style="margin-top:16px">
-<div class="card"><h2>LCD i flow</h2><div class="grid4"><div><label>LCD enabled</label><select id="displayEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Contrast</label><input id="contrast" type="number"></div><div><label>Flow enabled</label><select id="flowEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Remote trigger</label><select id="flowRemoteTriggerEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Weight trigger</label><select id="flowWeightTriggerEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Weight threshold [kg]</label><input id="flowWeightThresholdKg" type="number"></div><div><label>Summary screen [ms]</label><input id="flowSummaryScreenMs" type="number"></div><div><label>Result screen [ms]</label><input id="flowResultScreenMs" type="number"></div></div></div>
-<div class="card"><h2>Bezpieczeństwo</h2><div class="grid3"><div><label>Service user</label><input id="serviceUser"></div><div><label>Service password</label><input id="servicePassword" type="password"></div><div><label>OTA password</label><input id="otaPassword" type="password"></div><div><label>Admin user</label><input id="adminUser"></div><div><label>Admin password</label><input id="adminPassword" type="password"></div></div></div>
+<div id="tab-service" class="tab">
+<div class="grid"><div class="card"><h2>Bezpieczeństwo</h2><div class="grid3"><div><label>Service user</label><input id="serviceUser"></div><div><label>Service password</label><input id="servicePassword" type="password"></div><div><label>OTA password</label><input id="otaPassword" type="password"></div><div><label>Admin user</label><input id="adminUser"></div><div><label>Admin password</label><input id="adminPassword" type="password"></div></div></div><div class="card"><h2>Serwis</h2><div class="actions"><button class="btn light" onclick="openUrl('/logs')">Logi</button><button class="btn light" onclick="openUrl('/status')">Status TXT</button><button class="btn light" onclick="openUrl('/firmware')">Firmware / OTA</button><button class="btn red" onclick="reboot()">Restart</button></div></div></div>
 </div>
-
-<div class="actions" style="margin-top:16px"><button class="btn blue" onclick="saveConfig()">Zapisz konfigurację</button></div>
 
 <script>
 const GM805_PRESETS={
@@ -485,132 +502,49 @@ const GM805_PRESETS={
  'AIM ID off':'7E 00 08 01 00 D0 00 AB CD'
 };
 const $=(id)=>document.getElementById(id);
-function showError(err){$('errorBox').style.display='block';$('errorBox').textContent=String(err&&err.message?err.message:err);}
-function clearError(){$('errorBox').style.display='none';$('errorBox').textContent='';}
-function showOk(msg){$('okBox').style.display='block';$('okBox').textContent=msg; setTimeout(()=>{$('okBox').style.display='none';},2500);}
+let formDirty=false;
+let configLoaded=false;
+let activeTab='dash';
+function showError(err){$('errorBox').style.display='block';$('errorBox').textContent=String(err&&err.message?err.message:err);} function clearError(){$('errorBox').style.display='none';$('errorBox').textContent='';}
+function showOk(msg){$('okBox').style.display='block';$('okBox').textContent=msg; setTimeout(()=>{$('okBox').style.display='none';},2500);} 
 function openUrl(url){ window.open(url,'_blank'); }
 async function getJson(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(url+' '+r.status); return r.json(); }
 async function getText(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(url+' '+r.status); return r.text(); }
-async function postSimple(url, body){ const opt={method:'POST'}; if(body!==undefined){ opt.headers={'Content-Type':'text/plain;charset=utf-8'}; opt.body=body; } const r=await fetch(url,opt); if(!r.ok) throw new Error(url+' '+r.status); await refreshAll(); }
+async function postSimple(url, body){ const opt={method:'POST'}; if(body!==undefined){ opt.headers={'Content-Type':'text/plain;charset=utf-8'}; opt.body=body; } const r=await fetch(url,opt); if(!r.ok) throw new Error(url+' '+r.status); await refreshRuntimeOnly(); }
 async function reboot(){ if(confirm('Uruchomić urządzenie ponownie?')) await fetch('/reboot',{method:'POST'}); }
-async function buzz(){ await fetch('/api/output/buzzer?ms=120',{method:'POST'}); await refreshAll(); }
+async function buzz(){ await fetch('/api/output/buzzer?ms=120',{method:'POST'}); await refreshRuntimeOnly(); }
 async function sendKey(){ await postSimple('/api/keypad/key',$('virtKey').value.trim()); }
 async function sendCode(){ await postSimple('/api/keypad/code',$('virtCode').value.trim()); }
-function appendPreset(name){ const area=$('qrStartupCommandsHex'); const line=GM805_PRESETS[name] + ' # ' + name; area.value=(area.value.trim()?area.value.trim()+'\n':'')+line; }
-function clearQrCommands(){ $('qrStartupCommandsHex').value=''; }
+function appendPreset(name){ const area=$('qrStartupCommandsHex'); const line=GM805_PRESETS[name] + ' # ' + name; area.value=(area.value.trim()?area.value.trim()+'\n':'')+line; formDirty=true; }
+function clearQrCommands(){ $('qrStartupCommandsHex').value=''; formDirty=true; }
 async function sendQrHexNow(){ const value=$('qrHexNow').value.trim(); if(!value) return; await postSimple('/api/qr/command','HEX:'+value); }
 async function applyQrStartupNow(){ await postSimple('/api/qr/apply-startup'); }
 async function saveQrFlashNow(){ await postSimple('/api/qr/save-flash'); }
-function boolVal(id){ return $(id).value==='true'; }
-function numVal(id,def){ const v=Number($(id).value||def); return Number.isFinite(v)?v:def; }
-function strVal(id){ return $(id).value||''; }
+function boolVal(id){ return $(id).value==='true'; } function numVal(id,def){ const v=Number($(id).value||def); return Number.isFinite(v)?v:def; } function strVal(id){ return $(id).value||''; }
+function markDirty(){ formDirty=true; }
+function bindDirty(){ document.querySelectorAll('input,select,textarea').forEach(el=>{ if(el.id!=='runtimeBox' && el.id!=='statusBox' && el.id!=='qrLastCommandHex' && el.id!=='qrLastCommandStatus'){ el.addEventListener('input',markDirty); el.addEventListener('change',markDirty); }}); }
+function setupTabs(){ document.querySelectorAll('.tabbtn').forEach(btn=>btn.addEventListener('click',()=>{ const tab=btn.dataset.tab; activeTab=tab; document.querySelectorAll('.tabbtn').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id==='tab-'+tab)); })); }
 
 function fillConfig(cfg){
- $('deviceName').value=cfg.network.deviceName||'';
- $('networkMode').value=cfg.network.mode||'dhcp';
- $('networkIp').value=cfg.network.ip||'';
- $('networkGateway').value=cfg.network.gateway||'';
- $('networkSubnet').value=cfg.network.subnet||'';
- $('networkDns1').value=cfg.network.dns1||'';
- $('networkDns2').value=cfg.network.dns2||'';
- $('tcpMode').value=cfg.tcp.mode||'client';
- $('tcpServerIp').value=cfg.tcp.serverIp||'';
- $('tcpServerPort').value=cfg.tcp.serverPort||7000;
- $('tcpListenPort').value=cfg.tcp.listenPort||7000;
- $('tcpAutoReconnect').value=String(cfg.tcp.autoReconnect);
- $('tcpReconnectIntervalMs').value=cfg.tcp.reconnectIntervalMs||5000;
- $('tcpConnectTimeoutMs').value=cfg.tcp.connectTimeoutMs||350;
- $('scaleEnabled').value=String(cfg.scaleTcp.enabled);
- $('scaleMode').value=cfg.scaleTcp.mode||'client';
- $('scaleServerIp').value=cfg.scaleTcp.serverIp||'';
- $('scaleServerPort').value=cfg.scaleTcp.serverPort||4001;
- $('scaleListenPort').value=cfg.scaleTcp.listenPort||4001;
- $('scaleAutoReconnect').value=String(cfg.scaleTcp.autoReconnect);
- $('scaleReconnectIntervalMs').value=cfg.scaleTcp.reconnectIntervalMs||5000;
- $('scaleConnectTimeoutMs').value=cfg.scaleTcp.connectTimeoutMs||350;
- $('rfidEnabled').value=String(cfg.rfid.enabled);
- $('rfidBaudRate').value=cfg.rfid.baudRate||9600;
- $('rfidEncoding').value=cfg.rfid.encoding||'hex';
- $('qrEnabled').value=String(cfg.qr.enabled);
- $('qrBaudRate').value=cfg.qr.baudRate||9600;
- $('qrSendToTcp').value=String(cfg.qr.sendToTcp);
- $('qrPublishToWeb').value=String(cfg.qr.publishToWeb);
- $('qrApplyStartupCommands').value=String(cfg.qr.applyStartupCommands);
- $('qrSaveToFlashAfterApply').value=String(cfg.qr.saveToFlashAfterApply);
- $('qrStartupCommandDelayMs').value=cfg.qr.startupCommandDelayMs||120;
- $('qrInterCommandDelayMs').value=cfg.qr.interCommandDelayMs||80;
- $('qrMaxFrameLength').value=cfg.qr.maxFrameLength||256;
- $('qrLinePrefix').value=cfg.qr.linePrefix||'QR:';
- $('qrStartupCommandsHex').value=cfg.qr.startupCommandsHex||'';
- $('displayEnabled').value=String(cfg.display.enabled);
- $('contrast').value=cfg.display.contrast||180;
- $('flowEnabled').value=String(cfg.display.flowEnabled);
- $('flowRemoteTriggerEnabled').value=String(cfg.display.flowRemoteTriggerEnabled);
- $('flowWeightTriggerEnabled').value=String(cfg.display.flowWeightTriggerEnabled);
- $('flowWeightThresholdKg').value=cfg.display.flowWeightThresholdKg||500;
- $('flowSummaryScreenMs').value=cfg.display.flowSummaryScreenMs||2500;
- $('flowResultScreenMs').value=cfg.display.flowResultScreenMs||2500;
- $('keypadEnabled').value=String(cfg.keypad.enabled);
- $('pcf8574Address').value=cfg.keypad.pcf8574Address||32;
- $('discoveryEnabled').value=String(cfg.discovery.enabled);
- $('discoveryPort').value=cfg.discovery.udpPort||40404;
- $('serviceUser').value=(cfg.security&&cfg.security.serviceUser)||'';
- $('servicePassword').value=(cfg.security&&cfg.security.servicePassword)||'';
- $('otaPassword').value=(cfg.security&&cfg.security.otaPassword)||'';
- $('adminUser').value=(cfg.security&&cfg.security.adminUser)||'';
- $('adminPassword').value=(cfg.security&&cfg.security.adminPassword)||'';
+ $('deviceName').value=cfg.network.deviceName||''; $('networkMode').value=cfg.network.mode||'dhcp'; $('networkIp').value=cfg.network.ip||''; $('networkGateway').value=cfg.network.gateway||''; $('networkSubnet').value=cfg.network.subnet||''; $('networkDns1').value=cfg.network.dns1||''; $('networkDns2').value=cfg.network.dns2||'';
+ $('tcpMode').value=cfg.tcp.mode||'client'; $('tcpServerIp').value=cfg.tcp.serverIp||''; $('tcpServerPort').value=cfg.tcp.serverPort||7000; $('tcpListenPort').value=cfg.tcp.listenPort||7000; $('tcpAutoReconnect').value=String(cfg.tcp.autoReconnect); $('tcpReconnectIntervalMs').value=cfg.tcp.reconnectIntervalMs||5000; $('tcpConnectTimeoutMs').value=cfg.tcp.connectTimeoutMs||350;
+ $('scaleEnabled').value=String(cfg.scaleTcp.enabled); $('scaleMode').value=cfg.scaleTcp.mode||'client'; $('scaleServerIp').value=cfg.scaleTcp.serverIp||''; $('scaleServerPort').value=cfg.scaleTcp.serverPort||4001; $('scaleListenPort').value=cfg.scaleTcp.listenPort||4001; $('scaleAutoReconnect').value=String(cfg.scaleTcp.autoReconnect); $('scaleReconnectIntervalMs').value=cfg.scaleTcp.reconnectIntervalMs||5000; $('scaleConnectTimeoutMs').value=cfg.scaleTcp.connectTimeoutMs||350;
+ $('rfidEnabled').value=String(cfg.rfid.enabled); $('rfidBaudRate').value=cfg.rfid.baudRate||9600; $('rfidEncoding').value=cfg.rfid.encoding||'hex';
+ $('qrEnabled').value=String(cfg.qr.enabled); $('qrBaudRate').value=cfg.qr.baudRate||9600; $('qrSendToTcp').value=String(cfg.qr.sendToTcp); $('qrPublishToWeb').value=String(cfg.qr.publishToWeb); $('qrApplyStartupCommands').value=String(cfg.qr.applyStartupCommands); $('qrSaveToFlashAfterApply').value=String(cfg.qr.saveToFlashAfterApply); $('qrStartupCommandDelayMs').value=cfg.qr.startupCommandDelayMs||120; $('qrInterCommandDelayMs').value=cfg.qr.interCommandDelayMs||80; $('qrMaxFrameLength').value=cfg.qr.maxFrameLength||256; $('qrLinePrefix').value=cfg.qr.linePrefix||'QR:'; $('qrStartupCommandsHex').value=cfg.qr.startupCommandsHex||'';
+ $('displayEnabled').value=String(cfg.display.enabled); $('contrast').value=cfg.display.contrast||180; $('flowEnabled').value=String(cfg.display.flowEnabled); $('flowRemoteTriggerEnabled').value=String(cfg.display.flowRemoteTriggerEnabled); $('flowWeightTriggerEnabled').value=String(cfg.display.flowWeightTriggerEnabled); $('flowWeightThresholdKg').value=cfg.display.flowWeightThresholdKg||500; $('flowSummaryScreenMs').value=cfg.display.flowSummaryScreenMs||2500; $('flowResultScreenMs').value=cfg.display.flowResultScreenMs||2500;
+ $('keypadEnabled').value=String(cfg.keypad.enabled); $('pcf8574Address').value=cfg.keypad.pcf8574Address||32; $('discoveryEnabled').value=String(cfg.discovery.enabled); $('discoveryPort').value=cfg.discovery.udpPort||40404;
+ $('serviceUser').value=(cfg.security&&cfg.security.serviceUser)||''; $('servicePassword').value=(cfg.security&&cfg.security.servicePassword)||''; $('otaPassword').value=(cfg.security&&cfg.security.otaPassword)||''; $('adminUser').value=(cfg.security&&cfg.security.adminUser)||''; $('adminPassword').value=(cfg.security&&cfg.security.adminPassword)||'';
+ formDirty=false; configLoaded=true;
 }
-
-function lcdPreviewFromRuntime(rt){
- if(rt.lcdTitle){ return {title:rt.lcdTitle,l1:rt.lcdLine1||'-',l2:rt.lcdLine2||'-',l3:rt.lcdLine3||'-',l4:rt.lcdLine4||'-'}; }
- if(rt.displayEnabled===false){ return {title:'LCD OFF',l1:'-',l2:'-',l3:'-',l4:'-'}; }
- if(rt.flowActive){
-   if(rt.flowStep==='RFID') return {title:'FLOW / RFID',l1:'Zbliz karte',l2:'Czekam na odczyt',l3:rt.rfidLast||'-',l4:''};
-   if(rt.flowStep==='KEYPAD') return {title:'FLOW / KEY',l1:rt.webCodeLast||rt.keyLast||'----',l2:'Wprowadz kod',l3:'',l4:''};
-   if(rt.flowStep==='QR') return {title:'FLOW / QR',l1:rt.qrLast||'SCAN',l2:'Zeskanuj kod QR',l3:'',l4:''};
-   if(rt.flowStep==='SUMMARY') return {title:'FLOW / SUMMARY',l1:'RFID: '+(rt.rfidLast||'-'),l2:'KEY: '+(rt.webCodeLast||rt.keyLast||'-'),l3:'QR: '+(rt.qrLast||'-'),l4:rt.scaleTcpLast||'-'};
- }
- return {title:'OCZEKIWANIE',l1:rt.scaleTcpLast||'---',l2:'Zbliz karte RFID',l3:'QR: '+(rt.qrLast||'-'),l4:'TCP: '+(rt.cmdTcpConnected?'ON':'OFF')};
-}
+function lcdPreviewFromRuntime(rt){ if(rt.lcdTitle){ return {title:rt.lcdTitle,l1:rt.lcdLine1||'-',l2:rt.lcdLine2||'-',l3:rt.lcdLine3||'-',l4:rt.lcdLine4||'-'}; } if(rt.displayEnabled===false){ return {title:'LCD OFF',l1:'-',l2:'-',l3:'-',l4:'-'}; } if(rt.flowActive){ if(rt.flowStep==='RFID') return {title:'FLOW / RFID',l1:'Zbliz karte',l2:'Czekam na odczyt',l3:rt.rfidLast||'-',l4:''}; if(rt.flowStep==='KEYPAD') return {title:'FLOW / KEY',l1:rt.webCodeLast||rt.keyLast||'----',l2:'Wprowadz kod',l3:'',l4:''}; if(rt.flowStep==='QR') return {title:'FLOW / QR',l1:rt.qrLast||'SCAN',l2:'Zeskanuj kod QR',l3:'',l4:''}; if(rt.flowStep==='SUMMARY') return {title:'FLOW / SUMMARY',l1:'RFID: '+(rt.rfidLast||'-'),l2:'KEY: '+(rt.webCodeLast||rt.keyLast||'-'),l3:'QR: '+(rt.qrLast||'-'),l4:rt.scaleTcpLast||'-'}; } return {title:'OCZEKIWANIE',l1:rt.scaleTcpLast||'---',l2:'Zbliz karte RFID',l3:'QR: '+(rt.qrLast||'-'),l4:'TCP: '+(rt.cmdTcpConnected?'ON':'OFF')}; }
 function renderLcdPreview(rt){ const p=lcdPreviewFromRuntime(rt); $('lcd_title').textContent=p.title||'-'; $('lcd_line1').textContent=p.l1||'-'; $('lcd_line2').textContent=p.l2||'-'; $('lcd_line3').textContent=p.l3||'-'; $('lcd_line4').textContent=p.l4||'-'; }
-
-async function saveConfig(){
- clearError();
- const payload={
-  deviceName:strVal('deviceName').trim(),mode:strVal('networkMode'),ip:strVal('networkIp').trim(),gateway:strVal('networkGateway').trim(),subnet:strVal('networkSubnet').trim(),dns1:strVal('networkDns1').trim(),dns2:strVal('networkDns2').trim(),
-  tcpMode:strVal('tcpMode'),serverIp:strVal('tcpServerIp').trim(),serverPort:numVal('tcpServerPort',7000),listenPort:numVal('tcpListenPort',7000),autoReconnect:boolVal('tcpAutoReconnect'),reconnectIntervalMs:numVal('tcpReconnectIntervalMs',5000),connectTimeoutMs:numVal('tcpConnectTimeoutMs',350),
-  scaleEnabled:boolVal('scaleEnabled'),scaleMode:strVal('scaleMode'),scaleServerIp:strVal('scaleServerIp').trim(),scaleServerPort:numVal('scaleServerPort',4001),scaleListenPort:numVal('scaleListenPort',4001),scaleAutoReconnect:boolVal('scaleAutoReconnect'),scaleReconnectIntervalMs:numVal('scaleReconnectIntervalMs',5000),scaleConnectTimeoutMs:numVal('scaleConnectTimeoutMs',350),
-  rfidEnabled:boolVal('rfidEnabled'),rfidBaudRate:numVal('rfidBaudRate',9600),rfidEncoding:strVal('rfidEncoding'),
-  qrEnabled:boolVal('qrEnabled'),qrBaudRate:numVal('qrBaudRate',9600),qrSendToTcp:boolVal('qrSendToTcp'),qrPublishToWeb:boolVal('qrPublishToWeb'),qrApplyStartupCommands:boolVal('qrApplyStartupCommands'),qrSaveToFlashAfterApply:boolVal('qrSaveToFlashAfterApply'),qrStartupCommandDelayMs:numVal('qrStartupCommandDelayMs',120),qrInterCommandDelayMs:numVal('qrInterCommandDelayMs',80),qrMaxFrameLength:numVal('qrMaxFrameLength',256),qrLinePrefix:strVal('qrLinePrefix').trim(),qrStartupCommandsHex:strVal('qrStartupCommandsHex'),
-  displayEnabled:boolVal('displayEnabled'),contrast:numVal('contrast',180),flowEnabled:boolVal('flowEnabled'),flowRemoteTriggerEnabled:boolVal('flowRemoteTriggerEnabled'),flowWeightTriggerEnabled:boolVal('flowWeightTriggerEnabled'),flowWeightThresholdKg:numVal('flowWeightThresholdKg',500),flowSummaryScreenMs:numVal('flowSummaryScreenMs',2500),flowResultScreenMs:numVal('flowResultScreenMs',2500),
-  keypadEnabled:boolVal('keypadEnabled'),pcf8574Address:numVal('pcf8574Address',32),discoveryEnabled:boolVal('discoveryEnabled'),udpPort:numVal('discoveryPort',40404),serviceUser:strVal('serviceUser').trim(),servicePassword:strVal('servicePassword'),otaPassword:strVal('otaPassword'),adminUser:strVal('adminUser').trim(),adminPassword:strVal('adminPassword')
- };
- const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
- if(!r.ok) throw new Error('save '+r.status);
- await refreshAll();
- showOk('Zapisano konfigurację.');
-}
-
-function fillRuntime(rt, txt){
- $('runtimeBox').value=JSON.stringify(rt,null,2);
- $('statusBox').value=txt;
- $('rt_ip').textContent=rt.ip||'-';
- $('rt_rfid').textContent=rt.rfidLast||'-';
- $('rt_qr').textContent=rt.qrLast||'-';
- $('rt_key').textContent=rt.keyLast||'-';
- $('rt_code').textContent=rt.webCodeLast||'-';
- $('rt_cmd_tcp').textContent=(rt.cmdTcpConnected?'CONNECTED':'DISCONNECTED')+' | '+(rt.cmdTcpLast||'-');
- $('rt_scale_tcp').textContent=(rt.scaleTcpConnected?'CONNECTED':'DISCONNECTED')+' | '+(rt.scaleTcpLast||'-');
- $('rt_outputs').textContent='OUT1='+(rt.out1?'ON':'OFF')+' OUT2='+(rt.out2?'ON':'OFF')+' BUZZ='+(rt.buzzer?'ON':'OFF');
- $('rt_flow').textContent=(rt.flowActive?'ACTIVE':'IDLE')+' | '+(rt.flowStep||'-');
- $('runtimePills').innerHTML='<span class="pill">flow: '+(rt.flowActive?'AKTYWNY':'IDLE')+'</span><span class="pill">krok: '+(rt.flowStep||'-')+'</span><span class="pill">moduły: '+(rt.flowModules||'-')+'</span><span class="pill">qr: '+(rt.qrLast||'-')+'</span><span class="pill">rfid: '+(rt.rfidLast||'-')+'</span><span class="pill">keypad: '+(rt.keypadDetected?'OK':'BRAK')+'</span>';
- renderLcdPreview(rt);
- $('qrLastCommandHex').value=rt.qrLastCommandHex||'';
- $('qrLastCommandStatus').value=rt.qrLastCommandStatus||'';
-}
-
-async function refreshAll(){ clearError(); const [cfg,rt,txt]=await Promise.all([getJson('/api/config'),getJson('/api/runtime'),getText('/status')]); fillConfig(cfg); fillRuntime(rt,txt); }
-refreshAll().catch(showError); setInterval(()=>refreshAll().catch(showError),2500);
+function fillRuntime(rt,txt){ $('runtimeBox').value=JSON.stringify(rt,null,2); $('statusBox').value=txt; $('rt_rfid').textContent=rt.rfidLast||'-'; $('rt_qr').textContent=rt.qrLast||'-'; $('runtimePills').innerHTML='<span class="pill">flow: '+(rt.flowActive?'AKTYWNY':'IDLE')+'</span><span class="pill">krok: '+(rt.flowStep||'-')+'</span><span class="pill">moduły: '+(rt.flowModules||'-')+'</span><span class="pill">qr: '+(rt.qrLast||'-')+'</span><span class="pill">rfid: '+(rt.rfidLast||'-')+'</span><span class="pill">tcp cmd: '+(rt.cmdTcpConnected?'ON':'OFF')+'</span><span class="pill">tcp waga: '+(rt.scaleTcpConnected?'ON':'OFF')+'</span>'; $('qrLastCommandHex').value=rt.qrLastCommandHex||''; $('qrLastCommandStatus').value=rt.qrLastCommandStatus||''; $('kpi_ip').textContent=rt.ip||'-'; $('kpi_flow').textContent=(rt.flowActive?'ACTIVE ':'IDLE ')+(rt.flowStep||''); $('kpi_weight').textContent=rt.scaleTcpLast||'-'; $('kpi_tcp').textContent=rt.cmdTcpConnected?'CONNECTED':'OFFLINE'; renderLcdPreview(rt); }
+async function loadConfig(force=false){ if(formDirty && !force) return; const cfg=await getJson('/api/config'); fillConfig(cfg); }
+async function refreshRuntimeOnly(){ clearError(); const [rt,txt]=await Promise.all([getJson('/api/runtime'),getText('/status')]); fillRuntime(rt,txt); }
+async function refreshAll(force=false){ await refreshRuntimeOnly(); await loadConfig(force); }
+async function saveConfig(){ clearError(); const payload={ deviceName:strVal('deviceName').trim(),mode:strVal('networkMode'),ip:strVal('networkIp').trim(),gateway:strVal('networkGateway').trim(),subnet:strVal('networkSubnet').trim(),dns1:strVal('networkDns1').trim(),dns2:strVal('networkDns2').trim(), tcpMode:strVal('tcpMode'),serverIp:strVal('tcpServerIp').trim(),serverPort:numVal('tcpServerPort',7000),listenPort:numVal('tcpListenPort',7000),autoReconnect:boolVal('tcpAutoReconnect'),reconnectIntervalMs:numVal('tcpReconnectIntervalMs',5000),connectTimeoutMs:numVal('tcpConnectTimeoutMs',350), scaleEnabled:boolVal('scaleEnabled'),scaleMode:strVal('scaleMode'),scaleServerIp:strVal('scaleServerIp').trim(),scaleServerPort:numVal('scaleServerPort',4001),scaleListenPort:numVal('scaleListenPort',4001),scaleAutoReconnect:boolVal('scaleAutoReconnect'),scaleReconnectIntervalMs:numVal('scaleReconnectIntervalMs',5000),scaleConnectTimeoutMs:numVal('scaleConnectTimeoutMs',350), rfidEnabled:boolVal('rfidEnabled'),rfidBaudRate:numVal('rfidBaudRate',9600),rfidEncoding:strVal('rfidEncoding'), qrEnabled:boolVal('qrEnabled'),qrBaudRate:numVal('qrBaudRate',9600),qrSendToTcp:boolVal('qrSendToTcp'),qrPublishToWeb:boolVal('qrPublishToWeb'),qrApplyStartupCommands:boolVal('qrApplyStartupCommands'),qrSaveToFlashAfterApply:boolVal('qrSaveToFlashAfterApply'),qrStartupCommandDelayMs:numVal('qrStartupCommandDelayMs',120),qrInterCommandDelayMs:numVal('qrInterCommandDelayMs',80),qrMaxFrameLength:numVal('qrMaxFrameLength',256),qrLinePrefix:strVal('qrLinePrefix').trim(),qrStartupCommandsHex:strVal('qrStartupCommandsHex'), displayEnabled:boolVal('displayEnabled'),contrast:numVal('contrast',180),flowEnabled:boolVal('flowEnabled'),flowRemoteTriggerEnabled:boolVal('flowRemoteTriggerEnabled'),flowWeightTriggerEnabled:boolVal('flowWeightTriggerEnabled'),flowWeightThresholdKg:numVal('flowWeightThresholdKg',500),flowSummaryScreenMs:numVal('flowSummaryScreenMs',2500),flowResultScreenMs:numVal('flowResultScreenMs',2500), keypadEnabled:boolVal('keypadEnabled'),pcf8574Address:numVal('pcf8574Address',32),discoveryEnabled:boolVal('discoveryEnabled'),udpPort:numVal('discoveryPort',40404),serviceUser:strVal('serviceUser').trim(),servicePassword:strVal('servicePassword'),otaPassword:strVal('otaPassword'),adminUser:strVal('adminUser').trim(),adminPassword:strVal('adminPassword') };
+ const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) throw new Error('save '+r.status); formDirty=false; await refreshAll(true); showOk('Zapisano konfigurację.'); }
+setupTabs(); bindDirty(); refreshAll(true).catch(showError); setInterval(()=>refreshRuntimeOnly().catch(showError),2500);
 </script></div></body></html>
 )HTML";
 }
