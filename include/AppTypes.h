@@ -113,6 +113,13 @@ struct DisplaySettings {
 struct KeypadSettings {
     bool enabled = true;
     uint8_t pcf8574Address = 0x20;
+
+    // Osobny port TCP tylko dla klawiatury
+    bool tcpEnabled = true;
+    uint16_t tcpPort = 4012;
+
+    // Zachowuje dotychczasowe wysyłanie na główny TCP
+    bool sendToMainTcp = true;
 };
 
 struct DiscoverySettings {

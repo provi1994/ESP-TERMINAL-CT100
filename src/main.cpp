@@ -27,6 +27,7 @@ Rfid125kHzUart rfid(logger);
 KeypadManager keypad(logger);
 TcpManager tcpManager(logger);
 TcpManager scaleTcpManager(logger);
+TcpManager keypadTcpManager(logger);
 WebConfigServer webServer(logger);
 DiscoveryService discoveryService;
 ShiftRegister74HC595 outputs595(Pins::SHIFT595_DATA, Pins::SHIFT595_CLOCK, Pins::SHIFT595_LATCH);
@@ -227,6 +228,9 @@ static String buildStatusText() {
     out += "qr_bridge_last_rx_hex=" + bridge.lastRxHex + "\n";
     out += "qr_bridge_last_tx_hex=" + bridge.lastTxHex + "\n";
     out += "key_last=" + lastKey + "\n";
+    out += "key_tcp_enabled=" + String(cfg.keypad.tcpEnabled ? "on" : "off") + "\n";
+    out += "key_tcp_port=" + String(cfg.keypad.tcpPort) + "\n";
+    out += "key_tcp_client=" + String(keypadTcpManager.hasClient() ? "on" : "off") + "\n";
     out += "web_code_last=" + lastWebCode + "\n";
     out += "last_outbound=" + lastOutboundFrame + "\n";
     out += "last_inbound=" + lastInboundFrame + "\n";
@@ -342,6 +346,13 @@ static void applyRuntimeConfig() {
     refreshQrDiagnostics();
 
     keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
+    if (cfg.keypad.enabled && cfg.keypad.tcpEnabled) {
+    TcpSettings keyTcp;
+    keyTcp.mode = TcpMode::SERVER;
+    keyTcp.listenPort = cfg.keypad.tcpPort;   // domyślnie 4012
+    keyTcp.autoReconnect = false;
+    keypadTcpManager.begin(keyTcp);
+    }
 
     tcpManager.begin(cfg.tcp);
     if (cfg.scaleTcp.enabled) {
@@ -492,16 +503,36 @@ void setup() {
         tcpManager.sendLine(payload);
     });
 
-    keypad.onKey([](char key) {
-        lastKey = String(key);
-        beepBuzzer(40);
-        const String payload = "KEY:" + String(key);
-        lastOutboundFrame = payload;
+keypad.onKey([](char key) {
+    lastKey = String(key);
+    beepBuzzer(40);
+
+    const String payload = "KEY:" + String(key);
+    lastOutboundFrame = payload;
+
+    // Dotychczasowy główny TCP, jeśli włączony
+    if (cfg.keypad.sendToMainTcp) {
         tcpManager.sendLine(payload);
-        if (flow.active && flow.currentStep == "KEYPAD") {
-            flow.keypadDone = true;
-            updateFlowStep();
+    }
+
+    // Osobny port TCP 4012 dla klawiatury
+    if (cfg.keypad.tcpEnabled) {
+        const bool sent = keypadTcpManager.sendLine(payload);
+        if (!sent) {
+            logger.warn("KEY TCP 4012 no client: " + payload);
         }
+    }
+
+    if (cfg.display.enabled) {
+        display.showInputScreen("KLAWISZ", String(key), "TCP 4012");
+        lcdCustomText = String(key);
+        lcdCustomUntil = millis() + 1200UL;
+    }
+
+    if (flow.active && flow.currentStep == "KEYPAD") {
+        flow.keypadDone = true;
+        updateFlowStep();
+    }
     });
 
     qrCam.onDecoded([](const String& value) {
@@ -620,6 +651,7 @@ void loop() {
     webServer.loop();
     tcpManager.loop();
     if (cfg.scaleTcp.enabled) scaleTcpManager.loop();
+    if (cfg.keypad.enabled && cfg.keypad.tcpEnabled) keypadTcpManager.loop();
     if (cfg.discovery.enabled) discoveryService.loop();
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();

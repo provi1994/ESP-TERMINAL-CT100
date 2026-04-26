@@ -65,6 +65,9 @@ DeviceConfig ConfigManager::load() {
 
     config_.keypad.enabled = prefs_.getBool("key_en", config_.keypad.enabled);
     config_.keypad.pcf8574Address = prefs_.getUChar("key_addr", config_.keypad.pcf8574Address);
+    config_.keypad.tcpEnabled = prefs_.getBool("key_tcp_en", config_.keypad.tcpEnabled);
+    config_.keypad.tcpPort = prefs_.getUShort("key_tcp_pt", config_.keypad.tcpPort);
+    config_.keypad.sendToMainTcp = prefs_.getBool("key_main_tcp", config_.keypad.sendToMainTcp);
 
     config_.discovery.enabled = prefs_.getBool("disc_en", config_.discovery.enabled);
     config_.discovery.udpPort = prefs_.getUShort("disc_port", config_.discovery.udpPort);
@@ -137,6 +140,9 @@ bool ConfigManager::save(const DeviceConfig& config) {
 
     prefs_.putBool("key_en", config.keypad.enabled);
     prefs_.putUChar("key_addr", config.keypad.pcf8574Address);
+    prefs_.putBool("key_tcp_en", config.keypad.tcpEnabled);
+    prefs_.putUShort("key_tcp_pt", config.keypad.tcpPort);
+    prefs_.putBool("key_main_tcp", config.keypad.sendToMainTcp);
 
     prefs_.putBool("disc_en", config.discovery.enabled);
     prefs_.putUShort("disc_port", config.discovery.udpPort);
