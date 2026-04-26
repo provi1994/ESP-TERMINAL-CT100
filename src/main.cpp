@@ -12,6 +12,7 @@
 #include "NetManager.h"
 #include "Pins.h"
 #include "QrCamGm805.h"
+#include "QrTcpBridge.h"
 #include "Rfid125kHzUart.h"
 #include "RfidFrameEncoder.h"
 #include "ShiftRegister74HC595.h"
@@ -30,6 +31,7 @@ WebConfigServer webServer(logger);
 DiscoveryService discoveryService;
 ShiftRegister74HC595 outputs595(Pins::SHIFT595_DATA, Pins::SHIFT595_CLOCK, Pins::SHIFT595_LATCH);
 QrCamGm805 qrCam(logger);
+QrTcpBridge qrTcpBridge(logger);
 
 DeviceConfig cfg;
 unsigned long lastStatusRefresh = 0;
@@ -182,7 +184,25 @@ static void cancelWeighFlow() {
     logger.warn("Flow cancelled from API/UI");
 }
 
+static void refreshQrDiagnostics() {
+    const auto d = qrCam.diagnostics();
+    qrLastPublished = d.lastDecoded;
+    qrLastRawAscii = d.lastRawAscii;
+    qrLastRawHex = d.lastRawHex;
+    qrLastCommandHex = d.lastCommandHex;
+    qrLastCommandStatus = d.lastCommandStatus;
+    qrLastFinalizeReason = d.lastFinalizeReason;
+    qrRuntimeStatus = d.runtimeStatus;
+    qrLastByteAt = d.lastByteAt;
+    qrLastFrameAt = d.lastFrameAt;
+    qrCurrentBytesCount = d.currentBytesCount;
+    qrLastFrameBytesCount = d.lastFrameBytesCount;
+    qrFrameOpen = d.frameOpen;
+}
+
 static String buildStatusText() {
+    const auto bridge = qrTcpBridge.stats();
+
     String out;
     out += "device=" + cfg.network.deviceName + "\n";
     out += "ip=" + netManager.localIP().toString() + "\n";
@@ -199,6 +219,13 @@ static String buildStatusText() {
     out += "qr_prefix=" + normalizeQrLinePrefix(cfg.qr.linePrefix) + "\n";
     out += "qr_last_cmd=" + qrLastCommandHex + "\n";
     out += "qr_last_cmd_status=" + qrLastCommandStatus + "\n";
+    out += "qr_bridge_enabled=" + String(cfg.qr.tcpBridgeEnabled ? "on" : "off") + "\n";
+    out += "qr_bridge_port=" + String(cfg.qr.tcpBridgePort) + "\n";
+    out += "qr_bridge_client=" + String(bridge.clientConnected ? "on" : "off") + "\n";
+    out += "qr_bridge_rx_bytes=" + String(bridge.rxBytesFromQr) + "\n";
+    out += "qr_bridge_tx_bytes=" + String(bridge.txBytesToQr) + "\n";
+    out += "qr_bridge_last_rx_hex=" + bridge.lastRxHex + "\n";
+    out += "qr_bridge_last_tx_hex=" + bridge.lastTxHex + "\n";
     out += "key_last=" + lastKey + "\n";
     out += "web_code_last=" + lastWebCode + "\n";
     out += "last_outbound=" + lastOutboundFrame + "\n";
@@ -280,22 +307,6 @@ static void renderFlowScreen() {
     }
 }
 
-static void refreshQrDiagnostics() {
-    const auto d = qrCam.diagnostics();
-    qrLastPublished = d.lastDecoded;
-    qrLastRawAscii = d.lastRawAscii;
-    qrLastRawHex = d.lastRawHex;
-    qrLastCommandHex = d.lastCommandHex;
-    qrLastCommandStatus = d.lastCommandStatus;
-    qrLastFinalizeReason = d.lastFinalizeReason;
-    qrRuntimeStatus = d.runtimeStatus;
-    qrLastByteAt = d.lastByteAt;
-    qrLastFrameAt = d.lastFrameAt;
-    qrCurrentBytesCount = d.currentBytesCount;
-    qrLastFrameBytesCount = d.lastFrameBytesCount;
-    qrFrameOpen = d.frameOpen;
-}
-
 static void applyRuntimeConfig() {
     ArduinoOTA.setHostname(cfg.network.deviceName.c_str());
     ArduinoOTA.setPassword(cfg.security.otaPassword.c_str());
@@ -322,7 +333,12 @@ static void applyRuntimeConfig() {
     }
 
     qrCam.begin(cfg.qr, Pins::QR_RX, Pins::QR_TX);
-    qrCam.applyStartupCommands();
+    if (cfg.qr.tcpBridgeEnabled) {
+        qrTcpBridge.begin(cfg.qr.tcpBridgePort);
+    } else {
+        qrTcpBridge.stop();
+        qrCam.applyStartupCommands();
+    }
     refreshQrDiagnostics();
 
     keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
@@ -377,8 +393,16 @@ static void handleVirtualKeyFromWeb(const String& key) {
     const String payload = "KEY:" + key;
     lastOutboundFrame = payload;
     tcpManager.sendLine(payload);
-    if (cfg.display.enabled) { display.showInputScreen("KLAWISZ WWW", key, "Wyslano z panelu"); lcdCustomText = key; lcdCustomUntil = millis() + 2500UL; }
-    if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; lastWebCode = key; updateFlowStep(); }
+    if (cfg.display.enabled) {
+        display.showInputScreen("KLAWISZ WWW", key, "Wyslano z panelu");
+        lcdCustomText = key;
+        lcdCustomUntil = millis() + 2500UL;
+    }
+    if (flow.active && flow.currentStep == "KEYPAD") {
+        flow.keypadDone = true;
+        lastWebCode = key;
+        updateFlowStep();
+    }
     logger.info("Virtual web key: " + key);
 }
 
@@ -388,8 +412,15 @@ static void handleVirtualCodeFromWeb(const String& code) {
     const String payload = "CODE:" + code;
     lastOutboundFrame = payload;
     tcpManager.sendLine(payload);
-    if (cfg.display.enabled) { display.showInputScreen("KOD Z WWW", code, "Wyslano z panelu"); lcdCustomText = code; lcdCustomUntil = millis() + 3000UL; }
-    if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; updateFlowStep(); }
+    if (cfg.display.enabled) {
+        display.showInputScreen("KOD Z WWW", code, "Wyslano z panelu");
+        lcdCustomText = code;
+        lcdCustomUntil = millis() + 3000UL;
+    }
+    if (flow.active && flow.currentStep == "KEYPAD") {
+        flow.keypadDone = true;
+        updateFlowStep();
+    }
     logger.info("Virtual web code: " + code);
 }
 
@@ -411,12 +442,18 @@ void setup() {
     tcpManager.onLineReceived([](const String& line) {
         lastInboundFrame = line;
         if (line.startsWith("LCD:")) {
-            lcdCustomText = line.substring(4); lcdCustomText.trim(); lcdCustomUntil = millis() + 5000UL;
+            lcdCustomText = line.substring(4);
+            lcdCustomText.trim();
+            lcdCustomUntil = millis() + 5000UL;
             if (cfg.display.enabled) display.showTcp(lcdCustomText);
             return;
         }
         if (line.startsWith("STATUS:")) {
-            remoteStatusText = line.substring(7); remoteStatusText.trim(); if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie"; remoteStatusUntil = millis() + 5000UL; return;
+            remoteStatusText = line.substring(7);
+            remoteStatusText.trim();
+            if (remoteStatusText.isEmpty()) remoteStatusText = "Oczekuje na wazenie";
+            remoteStatusUntil = millis() + 5000UL;
+            return;
         }
         if (line == "FLOW:START") { startWeighFlow(); return; }
         if (line == "FLOW:CANCEL") { cancelWeighFlow(); return; }
@@ -436,11 +473,19 @@ void setup() {
         lastCard = encoded;
         beepBuzzer(80);
         if (cfg.display.enabled) display.showCard(encoded);
-        if (flow.active && flow.currentStep == "RFID") { flow.rfidDone = true; updateFlowStep(); }
+        if (flow.active && flow.currentStep == "RFID") {
+            flow.rfidDone = true;
+            updateFlowStep();
+        }
         if (cfg.rfid.encoding == RfidEncoding::SCALE_FRAME_MODE) {
             const String frame = RfidFrameEncoder::encode(raw, RfidFrameEncoder::Mode::CT100_FRAME);
-            if (frame.isEmpty()) { logger.warn("RFID CT100 frame build failed"); return; }
-            lastOutboundFrame = frame; tcpManager.sendLine(frame); return;
+            if (frame.isEmpty()) {
+                logger.warn("RFID CT100 frame build failed");
+                return;
+            }
+            lastOutboundFrame = frame;
+            tcpManager.sendLine(frame);
+            return;
         }
         const String payload = "RFID:" + encoded + ";RAW:" + raw;
         lastOutboundFrame = payload;
@@ -453,7 +498,10 @@ void setup() {
         const String payload = "KEY:" + String(key);
         lastOutboundFrame = payload;
         tcpManager.sendLine(payload);
-        if (flow.active && flow.currentStep == "KEYPAD") { flow.keypadDone = true; updateFlowStep(); }
+        if (flow.active && flow.currentStep == "KEYPAD") {
+            flow.keypadDone = true;
+            updateFlowStep();
+        }
     });
 
     qrCam.onDecoded([](const String& value) {
@@ -465,16 +513,22 @@ void setup() {
         if (cfg.qr.sendToTcp) tcpManager.sendLine(payload);
         beepBuzzer(60);
         logger.info("QR: " + value);
-        if (flow.active && flow.currentStep == "QR") { flow.qrDone = true; updateFlowStep(); }
+        if (flow.active && flow.currentStep == "QR") {
+            flow.qrDone = true;
+            updateFlowStep();
+        }
     });
 
     webServer.setConfigProvider([]() { return cfg; });
     webServer.setStatusProvider([]() { return buildStatusText(); });
     webServer.setRuntimeJsonProvider([]() {
         refreshQrDiagnostics();
+        const auto bridge = qrTcpBridge.stats();
+
         String out;
         const bool cmdTcpConnected = tcpManager.isConnected() || tcpManager.hasClient();
         const bool scaleConnected = cfg.scaleTcp.enabled && (scaleTcpManager.isConnected() || scaleTcpManager.hasClient());
+
         out += "{";
         out += "\"ip\":\"" + jsonEscapeLocal(netManager.localIP().toString()) + "\",";
         out += "\"uptimeMs\":" + String(millis()) + ",";
@@ -492,6 +546,13 @@ void setup() {
         out += "\"qrPrefix\":\"" + jsonEscapeLocal(normalizeQrLinePrefix(cfg.qr.linePrefix)) + "\",";
         out += "\"qrLastCommandHex\":\"" + jsonEscapeLocal(qrLastCommandHex) + "\",";
         out += "\"qrLastCommandStatus\":\"" + jsonEscapeLocal(qrLastCommandStatus) + "\",";
+        out += "\"qrBridgeEnabled\":" + String(cfg.qr.tcpBridgeEnabled ? "true" : "false") + ",";
+        out += "\"qrBridgePort\":" + String(cfg.qr.tcpBridgePort) + ",";
+        out += "\"qrBridgeClient\":" + String(bridge.clientConnected ? "true" : "false") + ",";
+        out += "\"qrBridgeRxBytes\":" + String(bridge.rxBytesFromQr) + ",";
+        out += "\"qrBridgeTxBytes\":" + String(bridge.txBytesToQr) + ",";
+        out += "\"qrBridgeLastRxHex\":\"" + jsonEscapeLocal(bridge.lastRxHex) + "\",";
+        out += "\"qrBridgeLastTxHex\":\"" + jsonEscapeLocal(bridge.lastTxHex) + "\",";
         out += "\"keyLast\":\"" + jsonEscapeLocal(lastKey) + "\",";
         out += "\"webCodeLast\":\"" + jsonEscapeLocal(lastWebCode) + "\",";
         out += "\"lastOutbound\":\"" + jsonEscapeLocal(lastOutboundFrame) + "\",";
@@ -527,10 +588,26 @@ void setup() {
     webServer.onFlowStart([]() { startWeighFlow(); });
     webServer.onFlowCancel([]() { cancelWeighFlow(); });
     webServer.onQrCommand([](const String& cmd) {
+        if (cfg.qr.tcpBridgeEnabled) {
+            logger.warn("QR command ignored from web: TCP bridge active");
+            return;
+        }
         String value = trimCopy(cmd);
-        if (value.equalsIgnoreCase("APPLY_STARTUP")) { qrCam.applyStartupCommands(); refreshQrDiagnostics(); return; }
-        if (value.equalsIgnoreCase("SAVE_FLASH")) { qrCam.sendHexCommand("7E 00 09 01 00 00 00 DE C8", "web_save_flash"); refreshQrDiagnostics(); return; }
-        if (value.startsWith("HEX:")) { qrCam.sendHexCommand(value.substring(4), "web_hex"); refreshQrDiagnostics(); return; }
+        if (value.equalsIgnoreCase("APPLY_STARTUP")) {
+            qrCam.applyStartupCommands();
+            refreshQrDiagnostics();
+            return;
+        }
+        if (value.equalsIgnoreCase("SAVE_FLASH")) {
+            qrCam.sendHexCommand("7E 00 09 01 00 00 00 DE C8", "web_save_flash");
+            refreshQrDiagnostics();
+            return;
+        }
+        if (value.startsWith("HEX:")) {
+            qrCam.sendHexCommand(value.substring(4), "web_hex");
+            refreshQrDiagnostics();
+            return;
+        }
         qrCam.sendHexCommand(value, "web_raw");
         refreshQrDiagnostics();
     });
@@ -546,7 +623,14 @@ void loop() {
     if (cfg.discovery.enabled) discoveryService.loop();
     if (cfg.rfid.enabled) rfid.loop();
     if (cfg.keypad.enabled) keypad.loop();
-    if (cfg.qr.enabled) qrCam.loop();
+
+    if (cfg.qr.enabled) {
+        if (cfg.qr.tcpBridgeEnabled) {
+            qrTcpBridge.loop(Serial1);
+        } else {
+            qrCam.loop();
+        }
+    }
 
     refreshQrDiagnostics();
 

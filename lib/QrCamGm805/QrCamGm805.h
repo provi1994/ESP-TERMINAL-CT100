@@ -1,8 +1,9 @@
+
 #pragma once
 
 #include <Arduino.h>
-#include <HardwareSerial.h>
 #include <functional>
+#include <vector>
 
 #include "AppTypes.h"
 #include "LogManager.h"
@@ -16,7 +17,7 @@ public:
         String lastCommandHex;
         String lastCommandStatus;
         String lastFinalizeReason;
-        String runtimeStatus;
+        String runtimeStatus = "IDLE";
         uint32_t lastByteAt = 0;
         uint32_t lastFrameAt = 0;
         uint16_t currentBytesCount = 0;
@@ -24,35 +25,37 @@ public:
         bool frameOpen = false;
     };
 
-    explicit QrCamGm805(LogManager& logger, HardwareSerial& serial = Serial1);
+    explicit QrCamGm805(LogManager& logger);
 
     void begin(const QrSettings& settings, int rxPin, int txPin);
     void applySettings(const QrSettings& settings);
     void loop();
 
-    bool sendHexCommand(const String& hex, const char* tag);
+    bool sendHexCommand(const String& inputHex, const char* tag);
     void applyStartupCommands();
 
-    void onDecoded(std::function<void(const String&)> cb);
     Diagnostics diagnostics() const;
+    bool hasFreshDecode() const;
+    String takeLastDecode();
+
+    void onDecoded(std::function<void(const String& value)> cb);
 
 private:
-    static String trimCopy(const String& value);
-    static String cleanHexLine(const String& line);
-    static String bytesToHex(const uint8_t* data, size_t len);
-    void pushByte(uint8_t b);
+    void clearCurrentFrame();
     void finalizeFrame(const char* reason);
-    void resetCurrentFrame();
+    bool isKnownControlFrame(const std::vector<uint8_t>& raw) const;
+    String extractAsciiPayload(const std::vector<uint8_t>& raw) const;
+    static String bytesToHex(const uint8_t* data, size_t len);
 
     LogManager& logger_;
-    HardwareSerial& serial_;
     QrSettings settings_;
     int rxPin_ = -1;
     int txPin_ = -1;
 
+    std::vector<uint8_t> currentRaw_;
     String currentAscii_;
-    uint8_t rawFrame_[512] = {0};
-    size_t rawLen_ = 0;
-    std::function<void(const String&)> onDecoded_;
+    String pendingDecoded_;
+    uint32_t lastByteAt_ = 0;
     Diagnostics diag_;
+    std::function<void(const String&)> onDecoded_;
 };
