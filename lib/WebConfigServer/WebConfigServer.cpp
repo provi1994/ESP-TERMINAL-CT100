@@ -1,4 +1,3 @@
-
 #include "WebConfigServer.h"
 
 #include <ETH.h>
@@ -6,6 +5,7 @@
 #include <base64.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include "FirmwareInfo.h"
 
 WebConfigServer::WebConfigServer(LogManager& logger) : logger_(logger), server_(80) {}
 
@@ -329,7 +329,8 @@ String WebConfigServer::buildDeviceInfoJson(const DeviceConfig& cfg) {
     String out = "{";
     out += "\"deviceId\":\"" + jsonEscape(String((uint32_t)(ESP.getEfuseMac() & 0xFFFFFFFF), HEX)) + "\",";
     out += "\"deviceName\":\"" + jsonEscape(cfg.network.deviceName) + "\",";
-    out += "\"fw\":\"0.1.0\",";
+    out += "\"fw\":\"" + String(FirmwareInfo::VERSION) + "\",";
+    out += "\"build\":\"" + String(FirmwareInfo::BUILD) + "\",";
     out += "\"ip\":\"" + ETH.localIP().toString() + "\",";
     out += "\"mac\":\"" + ETH.macAddress() + "\",";
     out += "\"tcpListenPort\":" + String(cfg.tcp.listenPort) + ",";
@@ -478,9 +479,27 @@ label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bot
 <div id="tab-modules" class="tab">
 <div class="grid" style="margin-top:0">
 <div class="card"><h2>RFID</h2><div class="grid3"><div><label>Włączone</label><select id="rfidEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Baud</label><input id="rfidBaudRate" type="number"></div><div><label>Encoding</label><select id="rfidEncoding"><option value="hex">HEX</option><option value="dec">DEC</option><option value="raw">RAW</option><option value="scale_frame">SCALE FRAME</option></select></div></div><div class="badge" style="margin-top:10px">Ostatni RFID: <span id="rt_rfid">-</span></div></div>
-<div class="card"><h2>QR / GM805-L</h2><div class="grid4"><div><label>QR enabled</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR baud</label><input id="qrBaudRate" type="number"></div><div><label>QR -&gt; TCP</label><select id="qrSendToTcp"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>QR publish web</label><select id="qrPublishToWeb"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Prefix linii</label><input id="qrLinePrefix"></div><div><label>Apply startup</label><select id="qrApplyStartupCommands"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Save to flash</label><select id="qrSaveToFlashAfterApply"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Max frame len</label><input id="qrMaxFrameLength" type="number"></div><div><label>Startup delay [ms]</label><input id="qrStartupCommandDelayMs" type="number"></div><div><label>Inter-command delay [ms]</label><input id="qrInterCommandDelayMs" type="number"></div></div><label style="margin-top:12px">Startup commands HEX</label><textarea id="qrStartupCommandsHex" class="mono"></textarea><div class="actions" style="margin-top:10px"><button class="btn light" onclick="appendPreset('Baud 9600')">Baud 9600</button><button class="btn light" onclick="appendPreset('Find baud')">Find baud</button><button class="btn light" onclick="appendPreset('Continuous profile')">Continuous</button><button class="btn light" onclick="appendPreset('Trigger mode')">Trigger mode</button><button class="btn light" onclick="appendPreset('Full area + all barcodes')">Full area</button><button class="btn light" onclick="appendPreset('Allow Code39')">Code39</button><button class="btn light" onclick="appendPreset('AIM ID on')">AIM ID on</button><button class="btn light" onclick="appendPreset('AIM ID off')">AIM ID off</button></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="applyQrStartupNow()">Wyślij startup</button><button class="btn orange" onclick="saveQrFlashNow()">Save flash</button><button class="btn gray" onclick="clearQrCommands()">Wyczyść</button></div><div class="row" style="margin-top:10px"><div><label>Jednorazowa komenda HEX</label><input id="qrHexNow" class="mono"></div><div><label>&nbsp;</label><button class="btn blue" onclick="sendQrHexNow()">Wyślij teraz</button></div></div><div class="row" style="margin-top:10px"><div><label>Ostatnia komenda HEX</label><input id="qrLastCommandHex" readonly class="mono"></div><div><label>Status komendy</label><input id="qrLastCommandStatus" readonly></div></div><div class="badge" style="margin-top:10px">Ostatni QR: <span id="rt_qr">-</span></div></div>
+<div class="card"><h2>QR / GM805-L</h2>
+<div class="grid4">
+<div><label>QR enabled</label><select id="qrEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>QR baud</label><input id="qrBaudRate" type="number"></div>
+<div><label>QR -&gt; TCP</label><select id="qrSendToTcp"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>QR publish web</label><select id="qrPublishToWeb"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>Prefix linii</label><input id="qrLinePrefix"></div>
+<div><label>Apply startup</label><select id="qrApplyStartupCommands"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>Save to flash</label><select id="qrSaveToFlashAfterApply"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>Max frame len</label><input id="qrMaxFrameLength" type="number"></div>
+<div><label>Startup delay [ms]</label><input id="qrStartupCommandDelayMs" type="number"></div>
+<div><label>Inter-command delay [ms]</label><input id="qrInterCommandDelayMs" type="number"></div>
+<div><label>Frame idle [ms]</label><input id="qrFrameIdleTimeoutMs" type="number"></div>
+<div><label>TCP bridge</label><select id="qrTcpBridgeEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>Bridge port</label><input id="qrTcpBridgePort" type="number"></div>
+<div><label>Accept CR</label><select id="qrAcceptCr"><option value="true">ON</option><option value="false">OFF</option></select></div>
+<div><label>Accept LF</label><select id="qrAcceptLf"><option value="true">ON</option><option value="false">OFF</option></select></div>
 </div>
-<div class="card" style="margin-top:16px"><h2>Klawiatura i discovery</h2><div class="grid4"><div><label>Klawiatura</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>PCF8574 address</label><input id="pcf8574Address" type="number"></div><div><label>Discovery</label><select id="discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>UDP port</label><input id="discoveryPort" type="number"></div></div></div>
+<label style="margin-top:12px">Startup commands HEX</label><textarea id="qrStartupCommandsHex" class="mono"></textarea><div class="actions" style="margin-top:10px"><button class="btn light" onclick="appendPreset('Baud 9600')">Baud 9600</button><button class="btn light" onclick="appendPreset('Find baud')">Find baud</button><button class="btn light" onclick="appendPreset('Continuous profile')">Continuous</button><button class="btn light" onclick="appendPreset('Trigger mode')">Trigger mode</button><button class="btn light" onclick="appendPreset('Full area + all barcodes')">Full area</button><button class="btn light" onclick="appendPreset('Allow Code39')">Code39</button><button class="btn light" onclick="appendPreset('AIM ID on')">AIM ID on</button><button class="btn light" onclick="appendPreset('AIM ID off')">AIM ID off</button></div><div class="actions" style="margin-top:10px"><button class="btn blue" onclick="applyQrStartupNow()">Wyślij startup</button><button class="btn orange" onclick="saveQrFlashNow()">Save flash</button><button class="btn gray" onclick="clearQrCommands()">Wyczyść</button></div><div class="row" style="margin-top:10px"><div><label>Jednorazowa komenda HEX</label><input id="qrHexNow" class="mono"></div><div><label>&nbsp;</label><button class="btn blue" onclick="sendQrHexNow()">Wyślij teraz</button></div></div><div class="row" style="margin-top:10px"><div><label>Ostatnia komenda HEX</label><input id="qrLastCommandHex" readonly class="mono"></div><div><label>Status komendy</label><input id="qrLastCommandStatus" readonly></div></div><div class="badge" style="margin-top:10px">Ostatni QR: <span id="rt_qr">-</span></div></div>
+</div>
+<div class="card" style="margin-top:16px"><h2>Klawiatura i discovery</h2><div class="grid4"><div><label>Klawiatura</label><select id="keypadEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>PCF8574 address</label><input id="pcf8574Address" type="number"></div><div><label>Keypad TCP</label><select id="keypadTcpEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Keypad TCP port</label><input id="keypadTcpPort" type="number"></div><div><label>Send to main TCP</label><select id="keypadSendToMainTcp"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>Discovery</label><select id="discoveryEnabled"><option value="true">ON</option><option value="false">OFF</option></select></div><div><label>UDP port</label><input id="discoveryPort" type="number"></div></div></div>
 </div>
 
 <div id="tab-network" class="tab">
@@ -538,9 +557,9 @@ function fillConfig(cfg){
  $('tcpMode').value=cfg.tcp.mode||'client'; $('tcpServerIp').value=cfg.tcp.serverIp||''; $('tcpServerPort').value=cfg.tcp.serverPort||7000; $('tcpListenPort').value=cfg.tcp.listenPort||7000; $('tcpAutoReconnect').value=String(cfg.tcp.autoReconnect); $('tcpReconnectIntervalMs').value=cfg.tcp.reconnectIntervalMs||5000; $('tcpConnectTimeoutMs').value=cfg.tcp.connectTimeoutMs||350;
  $('scaleEnabled').value=String(cfg.scaleTcp.enabled); $('scaleMode').value=cfg.scaleTcp.mode||'client'; $('scaleServerIp').value=cfg.scaleTcp.serverIp||''; $('scaleServerPort').value=cfg.scaleTcp.serverPort||4001; $('scaleListenPort').value=cfg.scaleTcp.listenPort||4001; $('scaleAutoReconnect').value=String(cfg.scaleTcp.autoReconnect); $('scaleReconnectIntervalMs').value=cfg.scaleTcp.reconnectIntervalMs||5000; $('scaleConnectTimeoutMs').value=cfg.scaleTcp.connectTimeoutMs||350;
  $('rfidEnabled').value=String(cfg.rfid.enabled); $('rfidBaudRate').value=cfg.rfid.baudRate||9600; $('rfidEncoding').value=cfg.rfid.encoding||'hex';
- $('qrEnabled').value=String(cfg.qr.enabled); $('qrBaudRate').value=cfg.qr.baudRate||9600; $('qrSendToTcp').value=String(cfg.qr.sendToTcp); $('qrPublishToWeb').value=String(cfg.qr.publishToWeb); $('qrApplyStartupCommands').value=String(cfg.qr.applyStartupCommands); $('qrSaveToFlashAfterApply').value=String(cfg.qr.saveToFlashAfterApply); $('qrStartupCommandDelayMs').value=cfg.qr.startupCommandDelayMs||120; $('qrInterCommandDelayMs').value=cfg.qr.interCommandDelayMs||80; $('qrMaxFrameLength').value=cfg.qr.maxFrameLength||256; $('qrLinePrefix').value=cfg.qr.linePrefix||'QR:'; $('qrStartupCommandsHex').value=cfg.qr.startupCommandsHex||'';
+ $('qrEnabled').value=String(cfg.qr.enabled); $('qrBaudRate').value=cfg.qr.baudRate||9600; $('qrSendToTcp').value=String(cfg.qr.sendToTcp); $('qrPublishToWeb').value=String(cfg.qr.publishToWeb); $('qrApplyStartupCommands').value=String(cfg.qr.applyStartupCommands); $('qrSaveToFlashAfterApply').value=String(cfg.qr.saveToFlashAfterApply); $('qrStartupCommandDelayMs').value=cfg.qr.startupCommandDelayMs||200; $('qrInterCommandDelayMs').value=cfg.qr.interCommandDelayMs||120; $('qrMaxFrameLength').value=cfg.qr.maxFrameLength||256; $('qrFrameIdleTimeoutMs').value=cfg.qr.frameIdleTimeoutMs||100; $('qrAcceptCr').value=String(cfg.qr.acceptCr); $('qrAcceptLf').value=String(cfg.qr.acceptLf); $('qrLinePrefix').value=cfg.qr.linePrefix||'QR'; $('qrStartupCommandsHex').value=cfg.qr.startupCommandsHex||''; $('qrTcpBridgeEnabled').value=String(cfg.qr.tcpBridgeEnabled); $('qrTcpBridgePort').value=cfg.qr.tcpBridgePort||4010;
  $('displayEnabled').value=String(cfg.display.enabled); $('contrast').value=cfg.display.contrast||180; $('flowEnabled').value=String(cfg.display.flowEnabled); $('flowRemoteTriggerEnabled').value=String(cfg.display.flowRemoteTriggerEnabled); $('flowWeightTriggerEnabled').value=String(cfg.display.flowWeightTriggerEnabled); $('flowWeightThresholdKg').value=cfg.display.flowWeightThresholdKg||500; $('flowSummaryScreenMs').value=cfg.display.flowSummaryScreenMs||2500; $('flowResultScreenMs').value=cfg.display.flowResultScreenMs||2500;
- $('keypadEnabled').value=String(cfg.keypad.enabled); $('pcf8574Address').value=cfg.keypad.pcf8574Address||32; $('discoveryEnabled').value=String(cfg.discovery.enabled); $('discoveryPort').value=cfg.discovery.udpPort||40404;
+ $('keypadEnabled').value=String(cfg.keypad.enabled); $('pcf8574Address').value=cfg.keypad.pcf8574Address||32; $('keypadTcpEnabled').value=String(cfg.keypad.tcpEnabled); $('keypadTcpPort').value=cfg.keypad.tcpPort||4012; $('keypadSendToMainTcp').value=String(cfg.keypad.sendToMainTcp); $('discoveryEnabled').value=String(cfg.discovery.enabled); $('discoveryPort').value=cfg.discovery.udpPort||40404;
  $('serviceUser').value=(cfg.security&&cfg.security.serviceUser)||''; $('servicePassword').value=(cfg.security&&cfg.security.servicePassword)||''; $('otaPassword').value=(cfg.security&&cfg.security.otaPassword)||''; $('adminUser').value=(cfg.security&&cfg.security.adminUser)||''; $('adminPassword').value=(cfg.security&&cfg.security.adminPassword)||'';
  formDirty=false; configLoaded=true;
 }
@@ -550,7 +569,7 @@ function fillRuntime(rt,txt){ $('runtimeBox').value=JSON.stringify(rt,null,2); $
 async function loadConfig(force=false){ if(formDirty && !force) return; const cfg=await getJson('/api/config'); fillConfig(cfg); }
 async function refreshRuntimeOnly(){ clearError(); const [rt,txt]=await Promise.all([getJson('/api/runtime'),getText('/status')]); fillRuntime(rt,txt); }
 async function refreshAll(force=false){ await refreshRuntimeOnly(); await loadConfig(force); }
-async function saveConfig(){ clearError(); const payload={ deviceName:strVal('deviceName').trim(),mode:strVal('networkMode'),ip:strVal('networkIp').trim(),gateway:strVal('networkGateway').trim(),subnet:strVal('networkSubnet').trim(),dns1:strVal('networkDns1').trim(),dns2:strVal('networkDns2').trim(), tcpMode:strVal('tcpMode'),serverIp:strVal('tcpServerIp').trim(),serverPort:numVal('tcpServerPort',7000),listenPort:numVal('tcpListenPort',7000),autoReconnect:boolVal('tcpAutoReconnect'),reconnectIntervalMs:numVal('tcpReconnectIntervalMs',5000),connectTimeoutMs:numVal('tcpConnectTimeoutMs',350), scaleEnabled:boolVal('scaleEnabled'),scaleMode:strVal('scaleMode'),scaleServerIp:strVal('scaleServerIp').trim(),scaleServerPort:numVal('scaleServerPort',4001),scaleListenPort:numVal('scaleListenPort',4001),scaleAutoReconnect:boolVal('scaleAutoReconnect'),scaleReconnectIntervalMs:numVal('scaleReconnectIntervalMs',5000),scaleConnectTimeoutMs:numVal('scaleConnectTimeoutMs',350), rfidEnabled:boolVal('rfidEnabled'),rfidBaudRate:numVal('rfidBaudRate',9600),rfidEncoding:strVal('rfidEncoding'), qrEnabled:boolVal('qrEnabled'),qrBaudRate:numVal('qrBaudRate',9600),qrSendToTcp:boolVal('qrSendToTcp'),qrPublishToWeb:boolVal('qrPublishToWeb'),qrApplyStartupCommands:boolVal('qrApplyStartupCommands'),qrSaveToFlashAfterApply:boolVal('qrSaveToFlashAfterApply'),qrStartupCommandDelayMs:numVal('qrStartupCommandDelayMs',120),qrInterCommandDelayMs:numVal('qrInterCommandDelayMs',80),qrMaxFrameLength:numVal('qrMaxFrameLength',256),qrLinePrefix:strVal('qrLinePrefix').trim(),qrStartupCommandsHex:strVal('qrStartupCommandsHex'), displayEnabled:boolVal('displayEnabled'),contrast:numVal('contrast',180),flowEnabled:boolVal('flowEnabled'),flowRemoteTriggerEnabled:boolVal('flowRemoteTriggerEnabled'),flowWeightTriggerEnabled:boolVal('flowWeightTriggerEnabled'),flowWeightThresholdKg:numVal('flowWeightThresholdKg',500),flowSummaryScreenMs:numVal('flowSummaryScreenMs',2500),flowResultScreenMs:numVal('flowResultScreenMs',2500), keypadEnabled:boolVal('keypadEnabled'),pcf8574Address:numVal('pcf8574Address',32),discoveryEnabled:boolVal('discoveryEnabled'),udpPort:numVal('discoveryPort',40404),serviceUser:strVal('serviceUser').trim(),servicePassword:strVal('servicePassword'),otaPassword:strVal('otaPassword'),adminUser:strVal('adminUser').trim(),adminPassword:strVal('adminPassword') };
+async function saveConfig(){ clearError(); const payload={ deviceName:strVal('deviceName').trim(),mode:strVal('networkMode'),ip:strVal('networkIp').trim(),gateway:strVal('networkGateway').trim(),subnet:strVal('networkSubnet').trim(),dns1:strVal('networkDns1').trim(),dns2:strVal('networkDns2').trim(), tcpMode:strVal('tcpMode'),serverIp:strVal('tcpServerIp').trim(),serverPort:numVal('tcpServerPort',7000),listenPort:numVal('tcpListenPort',7000),autoReconnect:boolVal('tcpAutoReconnect'),reconnectIntervalMs:numVal('tcpReconnectIntervalMs',5000),connectTimeoutMs:numVal('tcpConnectTimeoutMs',350), scaleEnabled:boolVal('scaleEnabled'),scaleMode:strVal('scaleMode'),scaleServerIp:strVal('scaleServerIp').trim(),scaleServerPort:numVal('scaleServerPort',4001),scaleListenPort:numVal('scaleListenPort',4001),scaleAutoReconnect:boolVal('scaleAutoReconnect'),scaleReconnectIntervalMs:numVal('scaleReconnectIntervalMs',5000),scaleConnectTimeoutMs:numVal('scaleConnectTimeoutMs',350), rfidEnabled:boolVal('rfidEnabled'),rfidBaudRate:numVal('rfidBaudRate',9600),rfidEncoding:strVal('rfidEncoding'), qrEnabled:boolVal('qrEnabled'),qrBaudRate:numVal('qrBaudRate',9600),qrSendToTcp:boolVal('qrSendToTcp'),qrPublishToWeb:boolVal('qrPublishToWeb'),qrApplyStartupCommands:boolVal('qrApplyStartupCommands'),qrSaveToFlashAfterApply:boolVal('qrSaveToFlashAfterApply'),qrStartupCommandDelayMs:numVal('qrStartupCommandDelayMs',200),qrInterCommandDelayMs:numVal('qrInterCommandDelayMs',120),qrMaxFrameLength:numVal('qrMaxFrameLength',256),qrFrameIdleTimeoutMs:numVal('qrFrameIdleTimeoutMs',100),qrAcceptCr:boolVal('qrAcceptCr'),qrAcceptLf:boolVal('qrAcceptLf'),qrLinePrefix:strVal('qrLinePrefix').trim(),qrStartupCommandsHex:strVal('qrStartupCommandsHex'),qrTcpBridgeEnabled:boolVal('qrTcpBridgeEnabled'),qrTcpBridgePort:numVal('qrTcpBridgePort',4010), displayEnabled:boolVal('displayEnabled'),contrast:numVal('contrast',180),flowEnabled:boolVal('flowEnabled'),flowRemoteTriggerEnabled:boolVal('flowRemoteTriggerEnabled'),flowWeightTriggerEnabled:boolVal('flowWeightTriggerEnabled'),flowWeightThresholdKg:numVal('flowWeightThresholdKg',500),flowSummaryScreenMs:numVal('flowSummaryScreenMs',2500),flowResultScreenMs:numVal('flowResultScreenMs',2500), keypadEnabled:boolVal('keypadEnabled'),pcf8574Address:numVal('pcf8574Address',32),keypadTcpEnabled:boolVal('keypadTcpEnabled'),keypadTcpPort:numVal('keypadTcpPort',4012),keypadSendToMainTcp:boolVal('keypadSendToMainTcp'),discoveryEnabled:boolVal('discoveryEnabled'),udpPort:numVal('discoveryPort',40404),serviceUser:strVal('serviceUser').trim(),servicePassword:strVal('servicePassword'),otaPassword:strVal('otaPassword'),adminUser:strVal('adminUser').trim(),adminPassword:strVal('adminPassword') };
  const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) throw new Error('save '+r.status); formDirty=false; await refreshAll(true); showOk('Zapisano konfigurację.'); }
 setupTabs(); bindDirty(); refreshAll(true).catch(showError); setInterval(()=>refreshRuntimeOnly().catch(showError),2500);
 </script></div></body></html>
@@ -663,23 +682,23 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body,
     const String rfidEnc = parseStringField(body, "rfidEncoding", "");
     if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw" || rfidEnc == "scale_frame") cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(rfidEnc);
 
-    cfg.qr.enabled = parseBoolField(body, "enabled", cfg.qr.enabled);
-    cfg.qr.baudRate = parseUInt32Field(body, "baudRate", cfg.qr.baudRate);
-    cfg.qr.sendToTcp = parseBoolField(body, "sendToTcp", cfg.qr.sendToTcp);
-    cfg.qr.publishToWeb = parseBoolField(body, "publishToWeb", cfg.qr.publishToWeb);
-    cfg.qr.applyStartupCommands = parseBoolField(body, "applyStartupCommands", cfg.qr.applyStartupCommands);
-    cfg.qr.saveToFlashAfterApply = parseBoolField(body, "saveToFlashAfterApply", cfg.qr.saveToFlashAfterApply);
-    cfg.qr.startupCommandDelayMs = parseUInt16Field(body, "startupCommandDelayMs", cfg.qr.startupCommandDelayMs);
-    cfg.qr.interCommandDelayMs = parseUInt16Field(body, "interCommandDelayMs", cfg.qr.interCommandDelayMs);
-    cfg.qr.maxFrameLength = parseUInt16Field(body, "maxFrameLength", cfg.qr.maxFrameLength);
-    cfg.qr.frameIdleTimeoutMs = parseUInt16Field(body, "frameIdleTimeoutMs", cfg.qr.frameIdleTimeoutMs);
-    cfg.qr.acceptCr = parseBoolField(body, "acceptCr", cfg.qr.acceptCr);
-    cfg.qr.acceptLf = parseBoolField(body, "acceptLf", cfg.qr.acceptLf);
-    cfg.qr.linePrefix = parseStringField(body, "linePrefix", cfg.qr.linePrefix);
-    cfg.qr.startupCommandsHex = parseStringField(body, "startupCommandsHex", cfg.qr.startupCommandsHex);
-    cfg.qr.tcpBridgeEnabled = parseBoolField(body, "tcpBridgeEnabled", cfg.qr.tcpBridgeEnabled);
-    cfg.qr.tcpBridgePort = parseUInt16Field(body, "tcpBridgePort", cfg.qr.tcpBridgePort);
-    
+    cfg.qr.enabled = parseBoolField(body, "qrEnabled", cfg.qr.enabled);
+    cfg.qr.baudRate = parseUInt32Field(body, "qrBaudRate", cfg.qr.baudRate);
+    cfg.qr.sendToTcp = parseBoolField(body, "qrSendToTcp", cfg.qr.sendToTcp);
+    cfg.qr.publishToWeb = parseBoolField(body, "qrPublishToWeb", cfg.qr.publishToWeb);
+    cfg.qr.applyStartupCommands = parseBoolField(body, "qrApplyStartupCommands", cfg.qr.applyStartupCommands);
+    cfg.qr.saveToFlashAfterApply = parseBoolField(body, "qrSaveToFlashAfterApply", cfg.qr.saveToFlashAfterApply);
+    cfg.qr.startupCommandDelayMs = parseUInt16Field(body, "qrStartupCommandDelayMs", cfg.qr.startupCommandDelayMs);
+    cfg.qr.interCommandDelayMs = parseUInt16Field(body, "qrInterCommandDelayMs", cfg.qr.interCommandDelayMs);
+    cfg.qr.maxFrameLength = parseUInt16Field(body, "qrMaxFrameLength", cfg.qr.maxFrameLength);
+    cfg.qr.frameIdleTimeoutMs = parseUInt16Field(body, "qrFrameIdleTimeoutMs", cfg.qr.frameIdleTimeoutMs);
+    cfg.qr.acceptCr = parseBoolField(body, "qrAcceptCr", cfg.qr.acceptCr);
+    cfg.qr.acceptLf = parseBoolField(body, "qrAcceptLf", cfg.qr.acceptLf);
+    cfg.qr.linePrefix = parseStringField(body, "qrLinePrefix", cfg.qr.linePrefix);
+    cfg.qr.startupCommandsHex = parseStringField(body, "qrStartupCommandsHex", cfg.qr.startupCommandsHex);
+    cfg.qr.tcpBridgeEnabled = parseBoolField(body, "qrTcpBridgeEnabled", cfg.qr.tcpBridgeEnabled);
+    cfg.qr.tcpBridgePort = parseUInt16Field(body, "qrTcpBridgePort", cfg.qr.tcpBridgePort);
+
     cfg.display.enabled = parseBoolField(body, "displayEnabled", cfg.display.enabled);
     cfg.display.contrast = static_cast<uint8_t>(parseUInt16Field(body, "contrast", cfg.display.contrast));
     cfg.display.flow.enabled = parseBoolField(body, "flowEnabled", cfg.display.flow.enabled);
@@ -689,12 +708,12 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body,
     cfg.display.flow.summaryScreenMs = parseUInt16Field(body, "flowSummaryScreenMs", cfg.display.flow.summaryScreenMs);
     cfg.display.flow.resultScreenMs = parseUInt16Field(body, "flowResultScreenMs", cfg.display.flow.resultScreenMs);
 
-    cfg.keypad.enabled = parseBoolField(body, "enabled", cfg.keypad.enabled);
+    cfg.keypad.enabled = parseBoolField(body, "keypadEnabled", cfg.keypad.enabled);
     cfg.keypad.pcf8574Address = static_cast<uint8_t>(parseUInt16Field(body, "pcf8574Address", cfg.keypad.pcf8574Address));
-    cfg.keypad.tcpEnabled = parseBoolField(body, "tcpEnabled", cfg.keypad.tcpEnabled);
-    cfg.keypad.tcpPort = parseUInt16Field(body, "tcpPort", cfg.keypad.tcpPort);
-    cfg.keypad.sendToMainTcp = parseBoolField(body, "sendToMainTcp", cfg.keypad.sendToMainTcp);
-    
+    cfg.keypad.tcpEnabled = parseBoolField(body, "keypadTcpEnabled", cfg.keypad.tcpEnabled);
+    cfg.keypad.tcpPort = parseUInt16Field(body, "keypadTcpPort", cfg.keypad.tcpPort);
+    cfg.keypad.sendToMainTcp = parseBoolField(body, "keypadSendToMainTcp", cfg.keypad.sendToMainTcp);
+
     cfg.discovery.enabled = parseBoolField(body, "discoveryEnabled", cfg.discovery.enabled);
     cfg.discovery.udpPort = parseUInt16Field(body, "udpPort", cfg.discovery.udpPort);
 
