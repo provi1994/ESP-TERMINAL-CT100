@@ -1,0 +1,240 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 0460b57..0000000 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -3,6 +3,8 @@
+ #include <vector>
+ #include <ctype.h>
+
++#include <WiFiClient.h>
++#include <WiFiServer.h>
+ #include "AppTypes.h"
+ #include "ConfigManager.h"
+ #include "DiscoveryService.h"
+@@ -25,6 +27,10 @@ KeypadManager keypad(logger);
+ TcpManager tcpManager(logger);
+ TcpManager scaleTcpManager(logger);
+ WebConfigServer webServer(logger);
++
++// Osobny, prosty serwer TCP dla klawiatury.
++// Nie używamy tutaj TcpManager, żeby nie blokować portu 4012 przez ETH.linkUp().
++WiFiServer keypadTcpServer(4012);
++WiFiClient keypadTcpClient;
+ DiscoveryService discoveryService;
+ ShiftRegister74HC595 outputs595(Pins::SHIFT595_DATA, Pins::SHIFT595_CLOCK, Pins::SHIFT595_LATCH);
+ QrCamGm805 qrCam(logger);
+@@ -131,6 +137,33 @@ static String buildWeightForDisplay() {
+     return currentWeight + " KG";
+ }
+
++static void keypadTcpBegin() {
++    keypadTcpServer.begin();
++    keypadTcpServer.setNoDelay(true);
++    logger.info("KEYPAD TCP direct server listening on port 4012");
++}
++
++static void keypadTcpLoop() {
++    if (!cfg.keypad.enabled) return;
++
++    if (!keypadTcpClient || !keypadTcpClient.connected()) {
++        WiFiClient newClient = keypadTcpServer.available();
++        if (newClient) {
++            keypadTcpClient.stop();
++            keypadTcpClient = newClient;
++            keypadTcpClient.setNoDelay(true);
++            logger.info("KEYPAD TCP client connected on port 4012");
++        }
++    }
++}
++
++static bool keypadTcpSendLine(const String& line) {
++    keypadTcpLoop();
++    if (!keypadTcpClient || !keypadTcpClient.connected()) {
++        logger.warn("KEYPAD TCP 4012 no client: " + line);
++        return false;
++    }
++    keypadTcpClient.print(line + "\r\n");
++    return true;
++}
++
+ static String buildFlowModules() {
+     String out;
+     if (cfg.rfid.enabled) out += "RFID ";
+@@ -238,6 +271,8 @@ static String buildStatusText() {
+     out += "qr_bridge_last_rx_hex=" + bridge.lastRxHex + "\n";
+     out += "qr_bridge_last_tx_hex=" + bridge.lastTxHex + "\n";
+     out += "key_last=" + lastKey + "\n";
++    out += "key_tcp_port=4012\n";
++    out += "key_tcp_client=" + String((keypadTcpClient && keypadTcpClient.connected()) ? "on" : "off") + "\n";
+     out += "web_code_last=" + lastWebCode + "\n";
+     out += "last_outbound=" + lastOutboundFrame + "\n";
+     out += "last_inbound=" + lastInboundFrame + "\n";
+@@ -357,6 +392,7 @@ static void applyRuntimeConfig() {
+     refreshQrDiagnostics();
+
+     keypadDetected = cfg.keypad.enabled ? keypad.begin(cfg.keypad.pcf8574Address, Pins::I2C_SDA, Pins::I2C_SCL) : false;
++    if (cfg.keypad.enabled) keypadTcpBegin();
+
+     tcpManager.begin(cfg.tcp);
+     if (cfg.scaleTcp.enabled) {
+@@ -500,9 +536,21 @@ void setup() {
+         lastKey = String(key);
+         beepBuzzer(40);
+         const String payload = "KEY:" + String(key);
++
++        logger.info("KEYPAD PRESSED: " + payload);
+         lastOutboundFrame = payload;
++
++        // Zachowujemy dotychczasową funkcję: wysyłka na główny TCP.
+         tcpManager.sendLine(payload);
++
++        // Osobny port 4012 tylko dla klawiatury.
++        const bool sent4012 = keypadTcpSendLine(payload);
++        logger.info(String("KEYPAD TCP 4012 send: ") + (sent4012 ? "OK" : "NO CLIENT"));
++
++        if (cfg.display.enabled) {
++            display.showInputScreen("KLAWISZ", String(key), sent4012 ? "TCP 4012 OK" : "BRAK KLIENTA 4012");
++            lcdCustomText = String(key);
++            lcdCustomUntil = millis() + 1200UL;
++        }
+         if (flow.active && flow.currentStep == "KEYPAD") {
+             flow.keypadDone = true;
+             updateFlowStep();
+@@ -622,6 +670,7 @@ void loop() {
+     webServer.loop();
+     tcpManager.loop();
+     if (cfg.scaleTcp.enabled) scaleTcpManager.loop();
++    if (cfg.keypad.enabled) keypadTcpLoop();
+     if (cfg.discovery.enabled) discoveryService.loop();
+     if (cfg.rfid.enabled) rfid.loop();
+     if (cfg.keypad.enabled) keypad.loop();
+diff --git a/lib/KeypadManager/KeypadManager.h b/lib/KeypadManager/KeypadManager.h
+index c011a0f..0000000 100644
+--- a/lib/KeypadManager/KeypadManager.h
++++ b/lib/KeypadManager/KeypadManager.h
+@@ -17,6 +17,7 @@ class KeypadManager {
+   uint8_t address_ = 0x20;
+   bool initialized_ = false;
+   uint8_t state_ = 0xFF;
++  bool reversedWiring_ = false;
+   char lastStableKey_ = 0;
+   uint32_t lastDebounceMs_ = 0;
+   std::function<void(char)> callback_;
+@@ -36,4 +37,7 @@ class KeypadManager {
+   bool writeByte(uint8_t value);
+   bool readByte(uint8_t& value);
+   char scanOnce();
++  char scanRowsLowColsHigh();
++  char scanColsLowRowsHigh();
++  bool probeAddress(uint8_t address);
+ };
+diff --git a/lib/KeypadManager/KeypadManager.cpp b/lib/KeypadManager/KeypadManager.cpp
+index 0a34c12..0000000 100644
+--- a/lib/KeypadManager/KeypadManager.cpp
++++ b/lib/KeypadManager/KeypadManager.cpp
+@@ -4,17 +4,44 @@ constexpr char KeypadManager::kMap[4][4];
+
+ KeypadManager::KeypadManager(LogManager& logger) : logger_(logger) {}
+
++bool KeypadManager::probeAddress(uint8_t address) {
++  wire_->beginTransmission(address);
++  return wire_->endTransmission() == 0;
++}
++
+ bool KeypadManager::begin(uint8_t i2cAddress, uint8_t sdaPin, uint8_t sclPin) {
+-  address_ = i2cAddress;
+   wire_->begin(sdaPin, sclPin);
++  address_ = i2cAddress;
+   state_ = 0xFF;
+-  initialized_ = writeByte(state_);
++
++  initialized_ = probeAddress(address_);
++
++  // PCF8574N ma typowy zakres adresów 0x20-0x27.
++  // Jeżeli w konfiguracji jest zły adres, próbujemy znaleźć właściwy układ N.
++  if (!initialized_) {
++    for (uint8_t addr = 0x20; addr <= 0x27; ++addr) {
++      if (probeAddress(addr)) {
++        address_ = addr;
++        initialized_ = true;
++        logger_.warn("PCF8574N keypad auto-detected at 0x" + String(address_, HEX));
++        break;
++      }
++    }
++  }
++
++  if (initialized_) initialized_ = writeByte(0xFF);
++
+   if (initialized_) {
+-    logger_.info("PCF8574 keypad ready at 0x" + String(address_, HEX));
++    logger_.info("PCF8574N keypad ready at 0x" + String(address_, HEX));
++
++    // Wiele gotowych modułów 4x4 ma zamienione P0-P3 z P4-P7.
++    // Domyślnie próbujemy P0-P3 jako ROW. Jeśli nie ma klawisza,
++    // druga metoda i tak będzie sprawdzana w loop().
++    reversedWiring_ = false;
+   } else {
+-    logger_.error("PCF8574 keypad not detected at 0x" + String(address_, HEX));
++    logger_.error("PCF8574N keypad not detected in range 0x20-0x27");
+   }
++
+   return initialized_;
+ }
+
+@@ -35,7 +62,7 @@ bool KeypadManager::readByte(uint8_t& value) {
+   return true;
+ }
+
+-char KeypadManager::scanOnce() {
++char KeypadManager::scanRowsLowColsHigh() {
+   if (!initialized_) return 0;
+
+   for (uint8_t row = 0; row < 4; ++row) {
+@@ -62,6 +89,43 @@ char KeypadManager::scanOnce() {
+   return 0;
+ }
+
++char KeypadManager::scanColsLowRowsHigh() {
++  if (!initialized_) return 0;
++
++  for (uint8_t col = 0; col < 4; ++col) {
++    uint8_t out = 0xFF;
++    out &= static_cast<uint8_t>(~(1U << (4 + col)));
++    if (!writeByte(out)) return 0;
++    delayMicroseconds(150);
++
++    uint8_t in = 0xFF;
++    if (!readByte(in)) return 0;
++
++    for (uint8_t row = 0; row < 4; ++row) {
++      const uint8_t mask = static_cast<uint8_t>(1U << row);
++      if ((in & mask) == 0U) {
++        writeByte(0xFF);
++        return kMap[row][col];
++      }
++    }
++  }
++
++  writeByte(0xFF);
++  return 0;
++}
++
++char KeypadManager::scanOnce() {
++  char key = 0;
++
++  if (!reversedWiring_) {
++    key = scanRowsLowColsHigh();
++    if (key) return key;
++    key = scanColsLowRowsHigh();
++    if (key) { reversedWiring_ = true; logger_.warn("PCF8574N keypad wiring detected: P0-P3=COL, P4-P7=ROW"); }
++    return key;
++  }
++
++  key = scanColsLowRowsHigh();
++  if (key) return key;
++  return scanRowsLowColsHigh();
++}
++
+ void KeypadManager::loop() {
+   const char key = scanOnce();
+   const uint32_t now = millis();

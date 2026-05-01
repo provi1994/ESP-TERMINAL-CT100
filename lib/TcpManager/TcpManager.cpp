@@ -107,12 +107,7 @@ void TcpManager::readClient(WiFiClient& client) {
     } else {
       lastMessage_ += c;
 
-      if (lastMessage_.startsWith("LCD:") || lastMessage_.startsWith("STATUS:")) {
-        logger_.info("TCP RX immediate: " + lastMessage_);
-        if (lineCallback_) lineCallback_(lastMessage_);
-        lastMessage_.clear();
-        continue;
-      }
+
 
       if (lastMessage_.length() > 256) lastMessage_.remove(0, lastMessage_.length() - 256);
     }

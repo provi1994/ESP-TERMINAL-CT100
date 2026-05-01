@@ -386,8 +386,13 @@ String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) {
     out += "\"startupCommandDelayMs\":" + String(cfg.qr.startupCommandDelayMs) + ",";
     out += "\"interCommandDelayMs\":" + String(cfg.qr.interCommandDelayMs) + ",";
     out += "\"maxFrameLength\":" + String(cfg.qr.maxFrameLength) + ",";
+    out += "\"frameIdleTimeoutMs\":" + String(cfg.qr.frameIdleTimeoutMs) + ",";
+    out += "\"acceptCr\":" + String(cfg.qr.acceptCr ? "true" : "false") + ",";
+    out += "\"acceptLf\":" + String(cfg.qr.acceptLf ? "true" : "false") + ",";
     out += "\"linePrefix\":\"" + jsonEscape(cfg.qr.linePrefix) + "\",";
-    out += "\"startupCommandsHex\":\"" + jsonEscape(cfg.qr.startupCommandsHex) + "\"},";
+    out += "\"startupCommandsHex\":\"" + jsonEscape(cfg.qr.startupCommandsHex) + "\",";
+    out += "\"tcpBridgeEnabled\":" + String(cfg.qr.tcpBridgeEnabled ? "true" : "false") + ",";
+    out += "\"tcpBridgePort\":" + String(cfg.qr.tcpBridgePort) + "},";
 
     out += "\"display\":{";
     out += "\"enabled\":" + String(cfg.display.enabled ? "true" : "false") + ",";
@@ -401,7 +406,10 @@ String WebConfigServer::buildConfigJson(const DeviceConfig& cfg) {
 
     out += "\"keypad\":{";
     out += "\"enabled\":" + String(cfg.keypad.enabled ? "true" : "false") + ",";
-    out += "\"pcf8574Address\":" + String(cfg.keypad.pcf8574Address) + "},";
+    out += "\"pcf8574Address\":" + String(cfg.keypad.pcf8574Address) + ",";
+    out += "\"tcpEnabled\":" + String(cfg.keypad.tcpEnabled ? "true" : "false") + ",";
+    out += "\"tcpPort\":" + String(cfg.keypad.tcpPort) + ",";
+    out += "\"sendToMainTcp\":" + String(cfg.keypad.sendToMainTcp ? "true" : "false") + "},";
 
     out += "\"discovery\":{";
     out += "\"enabled\":" + String(cfg.discovery.enabled ? "true" : "false") + ",";
@@ -655,18 +663,23 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body,
     const String rfidEnc = parseStringField(body, "rfidEncoding", "");
     if (rfidEnc == "hex" || rfidEnc == "dec" || rfidEnc == "raw" || rfidEnc == "scale_frame") cfg.rfid.encoding = ConfigManager::rfidEncodingFromString(rfidEnc);
 
-    cfg.qr.enabled = parseBoolField(body, "qrEnabled", cfg.qr.enabled);
-    cfg.qr.baudRate = parseUInt32Field(body, "qrBaudRate", cfg.qr.baudRate);
-    cfg.qr.sendToTcp = parseBoolField(body, "qrSendToTcp", cfg.qr.sendToTcp);
-    cfg.qr.publishToWeb = parseBoolField(body, "qrPublishToWeb", cfg.qr.publishToWeb);
-    cfg.qr.applyStartupCommands = parseBoolField(body, "qrApplyStartupCommands", cfg.qr.applyStartupCommands);
-    cfg.qr.saveToFlashAfterApply = parseBoolField(body, "qrSaveToFlashAfterApply", cfg.qr.saveToFlashAfterApply);
-    cfg.qr.startupCommandDelayMs = parseUInt16Field(body, "qrStartupCommandDelayMs", cfg.qr.startupCommandDelayMs);
-    cfg.qr.interCommandDelayMs = parseUInt16Field(body, "qrInterCommandDelayMs", cfg.qr.interCommandDelayMs);
-    cfg.qr.maxFrameLength = parseUInt16Field(body, "qrMaxFrameLength", cfg.qr.maxFrameLength);
-    cfg.qr.linePrefix = parseStringField(body, "qrLinePrefix", cfg.qr.linePrefix);
-    cfg.qr.startupCommandsHex = parseStringField(body, "qrStartupCommandsHex", cfg.qr.startupCommandsHex);
-
+    cfg.qr.enabled = parseBoolField(body, "enabled", cfg.qr.enabled);
+    cfg.qr.baudRate = parseUInt32Field(body, "baudRate", cfg.qr.baudRate);
+    cfg.qr.sendToTcp = parseBoolField(body, "sendToTcp", cfg.qr.sendToTcp);
+    cfg.qr.publishToWeb = parseBoolField(body, "publishToWeb", cfg.qr.publishToWeb);
+    cfg.qr.applyStartupCommands = parseBoolField(body, "applyStartupCommands", cfg.qr.applyStartupCommands);
+    cfg.qr.saveToFlashAfterApply = parseBoolField(body, "saveToFlashAfterApply", cfg.qr.saveToFlashAfterApply);
+    cfg.qr.startupCommandDelayMs = parseUInt16Field(body, "startupCommandDelayMs", cfg.qr.startupCommandDelayMs);
+    cfg.qr.interCommandDelayMs = parseUInt16Field(body, "interCommandDelayMs", cfg.qr.interCommandDelayMs);
+    cfg.qr.maxFrameLength = parseUInt16Field(body, "maxFrameLength", cfg.qr.maxFrameLength);
+    cfg.qr.frameIdleTimeoutMs = parseUInt16Field(body, "frameIdleTimeoutMs", cfg.qr.frameIdleTimeoutMs);
+    cfg.qr.acceptCr = parseBoolField(body, "acceptCr", cfg.qr.acceptCr);
+    cfg.qr.acceptLf = parseBoolField(body, "acceptLf", cfg.qr.acceptLf);
+    cfg.qr.linePrefix = parseStringField(body, "linePrefix", cfg.qr.linePrefix);
+    cfg.qr.startupCommandsHex = parseStringField(body, "startupCommandsHex", cfg.qr.startupCommandsHex);
+    cfg.qr.tcpBridgeEnabled = parseBoolField(body, "tcpBridgeEnabled", cfg.qr.tcpBridgeEnabled);
+    cfg.qr.tcpBridgePort = parseUInt16Field(body, "tcpBridgePort", cfg.qr.tcpBridgePort);
+    
     cfg.display.enabled = parseBoolField(body, "displayEnabled", cfg.display.enabled);
     cfg.display.contrast = static_cast<uint8_t>(parseUInt16Field(body, "contrast", cfg.display.contrast));
     cfg.display.flow.enabled = parseBoolField(body, "flowEnabled", cfg.display.flow.enabled);
@@ -676,9 +689,12 @@ void WebConfigServer::applyConfigFromJson(DeviceConfig& cfg, const String& body,
     cfg.display.flow.summaryScreenMs = parseUInt16Field(body, "flowSummaryScreenMs", cfg.display.flow.summaryScreenMs);
     cfg.display.flow.resultScreenMs = parseUInt16Field(body, "flowResultScreenMs", cfg.display.flow.resultScreenMs);
 
-    cfg.keypad.enabled = parseBoolField(body, "keypadEnabled", cfg.keypad.enabled);
+    cfg.keypad.enabled = parseBoolField(body, "enabled", cfg.keypad.enabled);
     cfg.keypad.pcf8574Address = static_cast<uint8_t>(parseUInt16Field(body, "pcf8574Address", cfg.keypad.pcf8574Address));
-
+    cfg.keypad.tcpEnabled = parseBoolField(body, "tcpEnabled", cfg.keypad.tcpEnabled);
+    cfg.keypad.tcpPort = parseUInt16Field(body, "tcpPort", cfg.keypad.tcpPort);
+    cfg.keypad.sendToMainTcp = parseBoolField(body, "sendToMainTcp", cfg.keypad.sendToMainTcp);
+    
     cfg.discovery.enabled = parseBoolField(body, "discoveryEnabled", cfg.discovery.enabled);
     cfg.discovery.udpPort = parseUInt16Field(body, "udpPort", cfg.discovery.udpPort);
 

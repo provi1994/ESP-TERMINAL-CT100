@@ -18,9 +18,14 @@ class KeypadManager {
   TwoWire* wire_ = &Wire;
   uint8_t address_ = 0x20;
   bool initialized_ = false;
-  uint8_t state_ = 0xFF;
+  bool reversedWiring_ = false;
+
+  uint8_t lastRawState_ = 0xFF;
   char lastStableKey_ = 0;
   uint32_t lastDebounceMs_ = 0;
+  uint32_t lastDiagnosticMs_ = 0;
+  uint32_t lastScanMs_ = 0;
+
   std::function<void(char)> callback_;
 
   static constexpr char kMap[4][4] = {
@@ -30,7 +35,14 @@ class KeypadManager {
       {'*', '0', '#', 'D'},
   };
 
+  bool probeAddress(uint8_t address);
   bool writeByte(uint8_t value);
   bool readByte(uint8_t& value);
+
+  String scanI2cBus();
+  void publishDiagnostics(bool forceScan);
+
   char scanOnce();
+  char scanRowsLowColsHigh();
+  char scanColsLowRowsHigh();
 };

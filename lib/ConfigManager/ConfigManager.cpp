@@ -48,6 +48,8 @@ DeviceConfig ConfigManager::load() {
     config_.qr.interCommandDelayMs = prefs_.getUShort("qr_idelay", config_.qr.interCommandDelayMs);
     config_.qr.maxFrameLength = prefs_.getUShort("qr_maxlen", config_.qr.maxFrameLength);
     config_.qr.frameIdleTimeoutMs = prefs_.getUShort("qr_idle", config_.qr.frameIdleTimeoutMs);
+    config_.qr.acceptCr = prefs_.getBool("qr_cr", config_.qr.acceptCr);
+    config_.qr.acceptLf = prefs_.getBool("qr_lf", config_.qr.acceptLf);
     config_.qr.linePrefix = prefs_.getString("qr_prefix", config_.qr.linePrefix);
     config_.qr.startupCommandsHex = prefs_.getString("qr_starthex", config_.qr.startupCommandsHex);
     config_.qr.tcpBridgeEnabled = prefs_.getBool("qr_br_en", config_.qr.tcpBridgeEnabled);
@@ -123,6 +125,8 @@ bool ConfigManager::save(const DeviceConfig& config) {
     prefs_.putUShort("qr_idelay", config.qr.interCommandDelayMs);
     prefs_.putUShort("qr_maxlen", config.qr.maxFrameLength);
     prefs_.putUShort("qr_idle", config.qr.frameIdleTimeoutMs);
+    prefs_.putBool("qr_cr", config.qr.acceptCr);
+    prefs_.putBool("qr_lf", config.qr.acceptLf);
     prefs_.putString("qr_prefix", config.qr.linePrefix);
     prefs_.putString("qr_starthex", config.qr.startupCommandsHex);
     prefs_.putBool("qr_br_en", config.qr.tcpBridgeEnabled);
