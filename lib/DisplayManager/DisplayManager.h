@@ -3,6 +3,17 @@
 #include <U8g2lib.h>
 #include "LogManager.h"
 
+enum class DriverHintIcon : uint8_t {
+  NONE = 0,
+  RFID,
+  KEYPAD,
+  QR,
+  WAIT,
+  SUCCESS,
+  ERROR_ICON,
+  PROCESSING
+};
+
 class DisplayManager {
  public:
   DisplayManager(LogManager& logger, uint8_t clk, uint8_t mosi, uint8_t cs, uint8_t rst);
@@ -22,6 +33,13 @@ class DisplayManager {
   void showSummaryScreen(const String& line1, const String& line2, const String& line3, const String& line4);
   void showResultScreen(const String& title, const String& line1, const String& line2);
 
+  // Nowy ekran operatorski: ikona + tekst + prosta animacja
+  void showDriverHint(const String& title,
+                      const String& line1,
+                      const String& line2,
+                      DriverHintIcon icon,
+                      uint8_t animFrame = 0);
+
   // Prymitywy do składania własnych ekranów
   void beginScreen();
   void endScreen();
@@ -40,4 +58,13 @@ class DisplayManager {
  private:
   LogManager& logger_;
   U8G2_ST7920_128X64_F_SW_SPI u8g2_;
+
+  void drawDriverIcon(DriverHintIcon icon, int x, int y, uint8_t animFrame);
+  void drawRfidIcon(int x, int y, uint8_t animFrame);
+  void drawKeypadIcon(int x, int y, uint8_t animFrame);
+  void drawQrIcon(int x, int y, uint8_t animFrame);
+  void drawWaitIcon(int x, int y, uint8_t animFrame);
+  void drawSuccessIcon(int x, int y, uint8_t animFrame);
+  void drawErrorIcon(int x, int y, uint8_t animFrame);
+  void drawProcessingIcon(int x, int y, uint8_t animFrame);
 };

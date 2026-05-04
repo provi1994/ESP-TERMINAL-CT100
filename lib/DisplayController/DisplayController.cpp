@@ -108,35 +108,50 @@ void DisplayController::renderBootSequence() {
 void DisplayController::renderFlowScreen() {
     if (!cfg_.display.enabled || !rt_.flow.active) return;
 
+    const uint8_t animFrame = (millis() / 250UL) % 4;
+
     if (rt_.flow.currentStep == "RFID") {
-        display_.showRfidPrompt("FLOW / RFID", "Zbliz karte", "Czekam na odczyt");
+        display_.showDriverHint(
+            "KROK 1 / RFID",
+            "PRZYLOZ",
+            "KARTE",
+            DriverHintIcon::RFID,
+            animFrame);
+
         return;
     }
 
     if (rt_.flow.currentStep == "KEYPAD") {
-        display_.showInputScreen(
-            "FLOW / KEY",
-            rt_.lastWebCode.isEmpty() ? "----" : rt_.lastWebCode,
-            "Wprowadz kod");
+        String value = rt_.lastWebCode.isEmpty() ? "WPISZ KOD" : rt_.lastWebCode;
+
+        display_.showDriverHint(
+            "KROK 2 / KOD",
+            DisplayManager::fit(value, 13),
+            "NA KLAWIAT.",
+            DriverHintIcon::KEYPAD,
+            animFrame);
 
         return;
     }
 
     if (rt_.flow.currentStep == "QR") {
-        display_.showInputScreen(
-            "FLOW / QR",
-            rt_.qrLastPublished.isEmpty() ? "SCAN" : rt_.qrLastPublished,
-            "Zeskanuj kod QR");
+        display_.showDriverHint(
+            "KROK 3 / QR",
+            "ZESKANUJ",
+            "KOD QR",
+            DriverHintIcon::QR,
+            animFrame);
 
         return;
     }
 
     if (rt_.flow.currentStep == "SUMMARY") {
-        display_.showSummaryScreen(
-            String("RFID: ") + (rt_.lastCard.isEmpty() ? "-" : rt_.lastCard),
-            String("KEY: ") + (rt_.lastWebCode.isEmpty() ? rt_.lastKey : rt_.lastWebCode),
-            String("QR: ") + (rt_.qrLastPublished.isEmpty() ? "-" : rt_.qrLastPublished),
-            buildWeightForDisplay());
+        display_.showDriverHint(
+            "PODSUMOWANIE",
+            "TRWA",
+            "ZAPIS...",
+            DriverHintIcon::PROCESSING,
+            animFrame);
 
         return;
     }
@@ -145,20 +160,52 @@ void DisplayController::renderFlowScreen() {
 void DisplayController::renderIdleScreen() {
     if (!cfg_.display.enabled) return;
 
+    const uint8_t animFrame = (millis() / 300UL) % 4;
+
     if (rt_.lcdCustomUntil > millis()) {
         display_.showTcp(rt_.lcdCustomText);
         return;
     }
 
-    display_.showIdleWeight(
-        activeHeaderText(),
-        buildWeightForDisplay(),
-        "Zbliz karte RFID");
+    String weight = buildWeightForDisplay();
+
+    if (weight == "Brak polaczenia z miernikiem") {
+        display_.showDriverHint(
+            "WAGA",
+            "BRAK",
+            "POLACZENIA",
+            DriverHintIcon::ERROR_ICON,
+            animFrame);
+
+        return;
+    }
+
+    if (!cfg_.scaleTcp.enabled) {
+        display_.showDriverHint(
+            "WAGA",
+            "WAGA TCP",
+            "WYLACZONA",
+            DriverHintIcon::ERROR_ICON,
+            animFrame);
+
+        return;
+    }
+
+    // Ekran gotowości: kierowca ma zacząć od RFID.
+    // Jeżeli później chcesz inaczej, możemy warunkować po konfiguracji flow.
+    display_.showDriverHint(
+        "GOTOWY",
+        "ZBLIZ",
+        "KARTE",
+        DriverHintIcon::RFID,
+        animFrame);
 }
 
 void DisplayController::loop() {
     if (!cfg_.display.enabled) return;
 
+    // Dla animacji 250 ms jest OK. 
+    // Ekran będzie miał 4 klatki na sekundę.
     if (millis() - rt_.lastStatusRefresh <= 250UL) {
         return;
     }
