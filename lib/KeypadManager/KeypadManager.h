@@ -16,7 +16,7 @@ class KeypadManager {
  private:
   LogManager& logger_;
   TwoWire* wire_ = &Wire;
-  uint8_t address_ = 0x20;
+  uint8_t address_ = 0x38;
   bool initialized_ = false;
   bool reversedWiring_ = false;
 
