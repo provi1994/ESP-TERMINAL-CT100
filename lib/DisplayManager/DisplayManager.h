@@ -33,14 +33,17 @@ class DisplayManager {
   void showSummaryScreen(const String& line1, const String& line2, const String& line3, const String& line4);
   void showResultScreen(const String& title, const String& line1, const String& line2);
 
-  // Nowy ekran operatorski: ikona + tekst + prosta animacja
+  void showTamtronIdle(const String& status, uint8_t animFrame);
+  void showWeightDetected(const String& weight, uint8_t animFrame);
+  void showProductCodeEntry(const String& code, uint8_t animFrame);
+  void showSummaryText(const String& title, const String& text, DriverHintIcon icon, uint8_t animFrame);
+
   void showDriverHint(const String& title,
                       const String& line1,
                       const String& line2,
                       DriverHintIcon icon,
                       uint8_t animFrame = 0);
 
-  // Prymitywy do składania własnych ekranów
   void beginScreen();
   void endScreen();
   void drawOuterFrame();

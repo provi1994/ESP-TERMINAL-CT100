@@ -1,72 +1,40 @@
 #include "FlowManager.h"
+    rt_.flow.remoteSummaryText = clean;
 
-FlowManager::FlowManager(LogManager& logger, RuntimeState& state, DeviceConfig& config)
-    : logger_(logger), rt_(state), cfg_(config) {}
-
-void FlowManager::start() {
-    rt_.flow.active = true;
-    rt_.flow.completed = false;
-    rt_.flow.rfidDone = !cfg_.rfid.enabled;
-    rt_.flow.keypadDone = !cfg_.keypad.enabled;
-    rt_.flow.qrDone = !cfg_.qr.enabled;
-    rt_.flow.startedAt = millis();
-    rt_.flow.screenUntil = 0;
-    rt_.flow.summary = "";
-
-    updateStep();
-    logger_.info("Flow started");
-}
-
-void FlowManager::cancel() {
-    rt_.flow.active = false;
-    rt_.flow.completed = false;
-    rt_.flow.currentStep = "IDLE";
-    rt_.flow.summary = "anulowano";
-
-    logger_.warn("Flow cancelled");
-}
-
-void FlowManager::updateStep() {
-    if (!rt_.flow.active) {
-        rt_.flow.currentStep = "IDLE";
-        return;
+    if (rt_.flow.active && rt_.flow.currentStep == "WAIT_REMOTE_SUMMARY") {
+        rt_.flow.currentStep = "SUMMARY_REMOTE";
+        rt_.flow.screenUntil = millis() + summaryMs();
+        rt_.flow.waitingForRemoteSummary = false;
     }
 
-    if (cfg_.rfid.enabled && !rt_.flow.rfidDone) {
-        rt_.flow.currentStep = "RFID";
-        return;
-    }
-
-    if (cfg_.keypad.enabled && !rt_.flow.keypadDone) {
-        rt_.flow.currentStep = "KEYPAD";
-        return;
-    }
-
-    if (cfg_.qr.enabled && !rt_.flow.qrDone) {
-        rt_.flow.currentStep = "QR";
-        return;
-    }
-
-    rt_.flow.currentStep = "SUMMARY";
-    rt_.flow.completed = true;
+    logger_.info("Remote summary received: " + clean);
 }
 
 void FlowManager::markRfidDone() {
     if (!rt_.flow.active) return;
+    if (rt_.flow.currentStep != "RFID") return;
+
     rt_.flow.rfidDone = true;
-    updateStep();
+    rt_.flow.currentStep = "RFID_OK";
+    rt_.flow.screenUntil = millis() + resultMs();
 }
 
 void FlowManager::markKeypadDone() {
     if (!rt_.flow.active) return;
+    if (rt_.flow.currentStep != "KEYPAD") return;
+
     rt_.flow.keypadDone = true;
-    updateStep();
+    rt_.flow.currentStep = "KEYPAD_OK";
+    rt_.flow.screenUntil = millis() + resultMs();
 }
 
 void FlowManager::markQrDone() {
     if (!rt_.flow.active) return;
+    if (rt_.flow.currentStep != "QR") return;
+
     rt_.flow.qrDone = true;
-    updateStep();
+    rt_.flow.currentStep = "QR_OK";
+    rt_.flow.screenUntil = millis() + resultMs();
 }
 
 bool FlowManager::active() const {

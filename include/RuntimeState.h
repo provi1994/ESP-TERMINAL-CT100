@@ -15,10 +15,17 @@ struct FlowRuntime {
     bool rfidDone = false;
     bool keypadDone = false;
     bool qrDone = false;
+
     unsigned long startedAt = 0;
     unsigned long screenUntil = 0;
+    unsigned long remoteSummaryWaitUntil = 0;
+
     String currentStep = "IDLE";
     String summary = "";
+    String remoteSummaryText = "";
+
+    bool startedByWeight = false;
+    bool waitingForRemoteSummary = false;
 };
 
 struct RuntimeState {
@@ -38,6 +45,7 @@ struct RuntimeState {
     unsigned long lastWeightAt = 0;
 
     String lastWebCode;
+    String productCodeBuffer;
 
     String qrLastPublished;
     String qrLastCommandHex;

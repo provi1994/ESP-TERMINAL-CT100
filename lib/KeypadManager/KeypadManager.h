@@ -38,6 +38,7 @@ class KeypadManager {
   bool probeAddress(uint8_t address);
   bool writeByte(uint8_t value);
   bool readByte(uint8_t& value);
+  bool autoDetectAddress();
 
   String scanI2cBus();
   void publishDiagnostics(bool forceScan);

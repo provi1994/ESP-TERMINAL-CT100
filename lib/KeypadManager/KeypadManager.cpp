@@ -5,7 +5,7 @@
 
 constexpr char KeypadManager::kMap[4][4];
 
-// Diagnostyka klawiatury i PCF8574N idzie po TCP 4012.
+// Diagnostyka klawiatury i PCF8574 / PCF8574A/AN idzie po TCP 4012.
 // Dzieki temu nie trzeba podmieniac src/main.cpp.
 static constexpr uint16_t KEYPAD_TCP_PORT = 4012;
 static WiFiServer keypadTcpServer(KEYPAD_TCP_PORT);
@@ -54,11 +54,11 @@ static bool keypadTcpLoop(LogManager& logger) {
       logger.info("KEYPAD TCP diagnostic client connected on port " + String(KEYPAD_TCP_PORT));
 
       tcpPrint("");
-      tcpPrint("=== ESP-TERMINAL PCF8574N DIAGNOSTYKA ===");
+      tcpPrint("=== ESP-TERMINAL PCF8574 DIAGNOSTYKA ===");
       tcpPrint("TCP port: 4012");
       tcpPrint("Komendy: HELP, SCAN, RAW");
-      tcpPrint("PCF8574N expected range: 0x20-0x27");
-      tcpPrint("PCF8574A range, informacyjnie: 0x38-0x3F");
+      tcpPrint("PCF8574A/AN expected range: 0x38-0x3F");
+      tcpPrint("PCF8574/N fallback range: 0x20-0x27");
       tcpPrint("==========================================");
     }
   }
@@ -137,6 +137,29 @@ String KeypadManager::scanI2cBus() {
   return found;
 }
 
+bool KeypadManager::autoDetectAddress() {
+  // PCF8574A / PCF8574AN: 0x38-0x3F.
+  // Dla A0=A1=A2=GND adresem bedzie 0x38.
+  for (uint8_t addr = 0x38; addr <= 0x3F; ++addr) {
+    if (probeAddress(addr)) {
+      address_ = addr;
+      logger_.warn("PCF8574A/AN keypad auto-detected at 0x" + String(address_, HEX));
+      return true;
+    }
+  }
+
+  // Fallback dla starszego/standardowego PCF8574 / PCF8574N: 0x20-0x27.
+  for (uint8_t addr = 0x20; addr <= 0x27; ++addr) {
+    if (probeAddress(addr)) {
+      address_ = addr;
+      logger_.warn("PCF8574/N keypad auto-detected at 0x" + String(address_, HEX));
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool KeypadManager::begin(uint8_t i2cAddress, uint8_t sdaPin, uint8_t sclPin) {
   wire_->begin(sdaPin, sclPin);
 
@@ -149,21 +172,14 @@ bool KeypadManager::begin(uint8_t i2cAddress, uint8_t sdaPin, uint8_t sclPin) {
   // Dzieki temu zobaczysz diagnostyke po TCP 4012 nawet przy blednym adresie albo kablach.
   keypadTcpBegin(logger_);
 
-  logger_.info("PCF8574N keypad init. Config address: 0x" + String(address_, HEX));
-  logger_.info("PCF8574N expected I2C range: 0x20-0x27");
+  logger_.info("PCF8574 keypad init. Config address: 0x" + String(address_, HEX));
+  logger_.info("PCF8574A/AN expected I2C range: 0x38-0x3F");
+  logger_.info("PCF8574/N fallback I2C range: 0x20-0x27");
 
   initialized_ = probeAddress(address_);
 
-  // PCF8574N: typowy zakres adresow 0x20-0x27.
   if (!initialized_) {
-    for (uint8_t addr = 0x20; addr <= 0x27; ++addr) {
-      if (probeAddress(addr)) {
-        address_ = addr;
-        initialized_ = true;
-        logger_.warn("PCF8574N keypad auto-detected at 0x" + String(address_, HEX));
-        break;
-      }
-    }
+    initialized_ = autoDetectAddress();
   }
 
   if (initialized_) {
@@ -171,9 +187,9 @@ bool KeypadManager::begin(uint8_t i2cAddress, uint8_t sdaPin, uint8_t sclPin) {
   }
 
   if (initialized_) {
-    logger_.info("PCF8574N keypad ready at 0x" + String(address_, HEX));
+    logger_.info("PCF8574 keypad ready at 0x" + String(address_, HEX));
   } else {
-    logger_.error("PCF8574N keypad not detected in range 0x20-0x27");
+    logger_.error("PCF8574 keypad not detected. Checked 0x38-0x3F and 0x20-0x27");
   }
 
   return initialized_;
@@ -211,11 +227,12 @@ void KeypadManager::publishDiagnostics(bool forceScan) {
   lastDiagnosticMs_ = now;
 
   tcpPrint("");
-  tcpPrint("--- PCF8574N DIAGNOSTYKA ---");
+  tcpPrint("--- PCF8574 DIAGNOSTYKA ---");
   tcpPrint("millis=" + String(now));
   tcpPrint("pcf_initialized=" + String(initialized_ ? "YES" : "NO"));
   tcpPrint("pcf_active_address=0x" + String(address_, HEX));
-  tcpPrint("pcf_expected_N_range=0x20-0x27");
+  tcpPrint("pcf_expected_A_AN_range=0x38-0x3F");
+  tcpPrint("pcf_fallback_N_range=0x20-0x27");
 
   if (forceScan || now - lastScanMs_ > 5000UL) {
     lastScanMs_ = now;
@@ -322,7 +339,7 @@ char KeypadManager::scanOnce() {
     key = scanColsLowRowsHigh();
     if (key) {
       reversedWiring_ = true;
-      logger_.warn("PCF8574N keypad wiring detected: P0-P3=COL, P4-P7=ROW");
+      logger_.warn("PCF8574 keypad wiring detected: P0-P3=COL, P4-P7=ROW");
       tcpPrint("AUTO WIRING: P0-P3=COL, P4-P7=ROW");
     }
 
